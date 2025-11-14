@@ -1,0 +1,224 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Posts | Social Media</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h2>Welcome to Social Media!</h2>
+    <button onclick="logout()">Logout</button>
+
+    <div id="createPost">
+      <textarea id="content" placeholder="Write something..."></textarea>
+      <button onclick="addPost()">Post</button>
+    </div>
+
+    <h3>All Posts</h3>
+    <div id="posts"></div>
+  </div>
+
+  <script>
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user) window.location.href = "/";
+
+    async function addPost() {
+      const content = document.getElementById("content").value;
+      const res = await fetch("/addpost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, content }),
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      document.getElementById("content").value = "";
+      loadPosts();
+    }
+
+    async function loadPosts() {
+      const res = await fetch("/allposts");
+      const posts = await res.json();
+
+      const container = document.getElementById("posts");
+      container.innerHTML = "";
+
+      for (const post of posts) {
+        const div = document.createElement("div");
+        div.classList.add("post");
+        div.innerHTML = `
+          <p><strong>${post.name}</strong>: ${post.content}</p>
+          <button onclick="likePost(${post.id})">❤️ Like</button>
+          <button onclick="showComments(${post.id})">💬 Comments</button>
+          <div id="comments-${post.id}" class="comments"></div>
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    async function likePost(post_id) {
+      await fetch("/like", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id, user_id: user.id }),
+      });
+      loadPosts();
+    }
+
+    async function showComments(post_id) {
+      const commentsDiv = document.getElementById(`comments-${post_id}`);
+      commentsDiv.innerHTML = `
+        <input type="text" id="comment-${post_id}" placeholder="Add a comment..." />
+        <button onclick="addComment(${post_id})">Post</button>
+      `;
+      const res = await fetch(`/comments/${post_id}`);
+      const comments = await res.json();
+      comments.forEach((c) => {
+        const p = document.createElement("p");
+        p.textContent = `${c.name}: ${c.content}`;
+        commentsDiv.appendChild(p);
+      });
+    }
+
+    async function addComment(post_id) {
+      const content = document.getElementById(`comment-${post_id}`).value;
+      await fetch("/comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id, user_id: user.id, content }),
+      });
+      showComments(post_id);
+    }
+
+    function logout() {
+      localStorage.removeItem("user");
+      window.location.href = "/";
+    }
+
+    loadPosts();
+  </script>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Feed | Social Media</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h2>Welcome to Social Media</h2>
+    <p id="userInfo"></p>
+    <textarea id="postContent" placeholder="What's on your mind?"></textarea>
+    <button onclick="addPost()">Post</button>
+    <button onclick="logout()">Logout</button>
+    <hr />
+    <h3>All Posts</h3>
+    <div id="posts"></div>
+  </div>
+
+  <script>
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user) window.location.href = "/";
+
+    document.getElementById("userInfo").innerText = `Logged in as ${user.name}`;
+
+    async function addPost() {
+      const content = document.getElementById("postContent").value;
+      if (!content) return alert("Please write something!");
+
+      const res = await fetch("/addpost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, content }),
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      if (res.ok) {
+        document.getElementById("postContent").value = "";
+        fetchPosts();
+      }
+    }
+
+    async function fetchPosts() {
+      const res = await fetch("/allposts");
+      const posts = await res.json();
+      const postsDiv = document.getElementById("posts");
+      postsDiv.innerHTML = "";
+
+      posts.forEach((post) => {
+        const div = document.createElement("div");
+        div.classList.add("post");
+        div.innerHTML = `
+          <p><b>${post.name}</b> — ${new Date(post.created_at).toLocaleString()}</p>
+          <p>${post.content}</p>
+          <button onclick="likePost(${post.id})">❤️ ${post.likes}</button>
+          <button onclick="showComments(${post.id})">💬 ${post.comments}</button>
+          ${post.name === user.name ? `<button onclick="deletePost(${post.id})">🗑️ Delete</button>` : ""}
+          <div id="comments-${post.id}" class="comments" style="display:none;"></div>
+          <hr>
+        `;
+        postsDiv.appendChild(div);
+      });
+    }
+
+    async function likePost(id) {
+      await fetch("/like", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: id, user_id: user.id }),
+      });
+      fetchPosts();
+    }
+
+    async function deletePost(id) {
+      if (!confirm("Delete this post?")) return;
+      await fetch(`/deletepost/${id}`, { method: "DELETE" });
+      fetchPosts();
+    }
+
+    async function showComments(postId) {
+      const div = document.getElementById(`comments-${postId}`);
+      if (div.style.display === "block") {
+        div.style.display = "none";
+        return;
+      }
+
+      const res = await fetch(`/comments/${postId}`);
+      const comments = await res.json();
+      div.innerHTML = `
+        <div>
+          ${comments.map(c => `<p><b>${c.name}:</b> ${c.content}</p>`).join("")}
+          <input id="comment-${postId}" placeholder="Add comment..." />
+          <button onclick="addComment(${postId})">Post</button>
+        </div>
+      `;
+      div.style.display = "block";
+    }
+
+    async function addComment(postId) {
+      const content = document.getElementById(`comment-${postId}`).value;
+      if (!content) return;
+      await fetch("/comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ post_id: postId, user_id: user.id, content }),
+      });
+      showComments(postId);
+    }
+
+    function logout() {
+      localStorage.removeItem("user");
+      window.location.href = "/";
+    }
+
+    fetchPosts();
+  </script>
+</body>
+</html>

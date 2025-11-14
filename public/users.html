@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Users</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body class="p-4">
+
+<a href="/feed" class="btn btn-link">← Back to Feed</a>
+<h3>All Users</h3>
+<div id="list"></div>
+
+<script>
+const api = "http://localhost:3000";
+const user = JSON.parse(localStorage.getItem("user"));
+if (!user) location.href="/";
+
+async function loadUsers(){
+  const res = await fetch(api + "/users");
+  const users = await res.json();
+
+  document.getElementById("list").innerHTML =
+    users.map(u => `
+      <div class="card p-3 mb-2 d-flex flex-row justify-content-between">
+        <div>
+          <strong>${u.name}</strong><br>
+          <small>${u.email}</small>
+        </div>
+
+        <div>
+          ${u.id === user.id ? "<em>You</em>" : `
+            <button onclick="follow(${u.id})" class="btn btn-sm btn-primary">Follow</button>
+            <button onclick="openChat(${u.id}, '${u.name}')" class="btn btn-sm btn-secondary">Chat</button>
+          `}
+        </div>
+      </div>
+    `).join("");
+}
+
+async function follow(id){
+  await fetch(api + "/follow", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ follower_id:user.id, followee_id:id })
+  });
+  alert("Followed");
+}
+
+function openChat(id, name){
+  alert("Chat feature coming soon!");
+}
+
+loadUsers();
+</script>
+</body>
+</html>

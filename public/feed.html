@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Feed</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: #f3f5f9; }
+    .card { border-radius: 14px; }
+    .tag { display:inline-block; background:#e5e5ff; padding:4px 10px; border-radius:12px; margin-right:6px; margin-top:6px; font-size:13px; }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary p-3">
+  <div class="container d-flex justify-content-between align-items-center">
+    <h5 class="text-white m-0">Social Media</h5>
+    <div>
+      <a class="btn btn-light btn-sm me-2" href="/users">Users</a>
+      <a class="btn btn-light btn-sm me-2" href="/tagspage">Tags</a>
+      <button onclick="logout()" class="btn btn-light btn-sm">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container mt-3">
+
+  <!-- CREATE POST -->
+  <div class="card p-3 mb-3">
+    <h5>Create a Post</h5>
+    <textarea id="content" class="form-control mb-2" placeholder="Write something..."></textarea>
+    <input id="image" type="file" accept="image/*" class="form-control mb-2" />
+    <input id="tagsInput" type="text" class="form-control mb-2" placeholder="Tags (comma separated)" />
+    <button onclick="createPost()" class="btn btn-primary w-100">Post</button>
+  </div>
+
+  <div id="posts"></div>
+</div>
+
+<script>
+const api = "http://localhost:3000";
+const user = JSON.parse(localStorage.getItem("user"));
+if (!user) location.href = "/";
+
+// Upload Image
+async function uploadImage(file){
+  if (!file) return null;
+  const fd = new FormData(); fd.append("image", file);
+  const r = await fetch(api + "/upload", { method:"POST", body:fd });
+  const j = await r.json(); return j.url;
+}
+
+// Create Post
+async function createPost(){
+  const content = document.getElementById("content").value.trim();
+  const file = document.getElementById("image").files[0];
+  const tagsRaw = document.getElementById("tagsInput").value.trim();
+
+  let image_url = null;
+  if (file) image_url = await uploadImage(file);
+
+  await fetch(api + "/addpost", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({ user_id:user.id, content, image_url, tags:tagsRaw })
+  });
+
+  document.getElementById("content").value = "";
+  document.getElementById("image").value = "";
+  document.getElementById("tagsInput").value = "";
+
+  loadPosts();
+}
+
+// Load Posts
+async function loadPosts(){
+  const res = await fetch(api + "/allposts");
+  const posts = await res.json();
+  const div = document.getElementById("posts");
+  div.innerHTML = "";
+
+  posts.forEach(p => {
+    let tags = p.tags.map(t => `<span class="tag">${t}</span>`).join("");
+
+    let followBtn = "";
+    if (p.user_id !== user.id) {
+      followBtn = `<button class="btn btn-sm btn-outline-primary" onclick="follow(${p.user_id})">Follow</button>`;
+    }
+
+    div.innerHTML += `
+      <div class="card p-3 mb-3">
+        <div class="d-flex justify-content-between">
+          <div>
+            <strong>${p.name}</strong><br>
+            <small class="text-muted">${new Date(p.created_at).toLocaleString()}</small>
+          </div>
+          <div>${followBtn}</div>
+        </div>
+
+        <p class="mt-2">${p.content}</p>
+
+        ${p.image_url ? `<img src="${p.image_url}" class="img-fluid rounded mb-2" />` : ""}
+
+        ${tags}
+
+        <div class="mt-2">
+          <button onclick="like(${p.id})" class="btn btn-sm btn-outline-danger">❤️ ${p.likes}</button>
+          <button onclick="toggleComments(${p.id})" class="btn btn-sm btn-outline-secondary">💬 ${p.comments}</button>
+
+          ${p.user_id === user.id ?
+            `<button onclick="deletePost(${p.id})" class="btn btn-sm btn-outline-dark">Delete</button>` : ""
+          }
+        </div>
+
+        <div id="comments-${p.id}" style="display:none" class="mt-2"></div>
+      </div>
+    `;
+  });
+}
+
+// Like
+async function like(postId){
+  await fetch(api + "/like", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ user_id:user.id, post_id:postId })
+  });
+
+  loadPosts();
+}
+
+// Toggle Comments
+async function toggleComments(postId){
+  const cDiv = document.getElementById("comments-" + postId);
+
+  if (cDiv.style.display === "block") {
+    cDiv.style.display = "none";
+    return;
+  }
+
+  const res = await fetch(api + "/comments/" + postId);
+  const comments = await res.json();
+
+  cDiv.innerHTML = comments.map(c => `<div><b>${c.name}</b>: ${c.content}</div>`).join("");
+
+  cDiv.innerHTML += `
+    <input id="c-${postId}" placeholder="Add comment" class="form-control mt-2 mb-2">
+    <button onclick="addComment(${postId})" class="btn btn-sm btn-primary">Comment</button>
+  `;
+
+  cDiv.style.display = "block";
+}
+
+// Add Comment
+async function addComment(postId){
+  const content = document.getElementById("c-" + postId).value.trim();
+  if (!content) return;
+
+  await fetch(api + "/comment", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ user_id:user.id, post_id:postId, content })
+  });
+
+  toggleComments(postId);
+  loadPosts();
+}
+
+// Delete Post
+async function deletePost(id){
+  if (!confirm("Delete post?")) return;
+
+  await fetch(api + "/deletepost/" + id, { method:"DELETE" });
+
+  loadPosts();
+}
+
+// Follow
+async function follow(id){
+  await fetch(api + "/follow", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({ follower_id:user.id, followee_id:id })
+  });
+  alert("Followed");
+}
+
+// Logout
+function logout(){
+  localStorage.removeItem("user");
+  location.href = "/";
+}
+
+loadPosts();
+</script>
+
+</body>
+</html>
