@@ -1,37 +1,101 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Register | Social Media</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Register — InstaLite</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-<body>
-  <div class="container">
-    <h2>Register</h2>
-    <input type="text" id="name" placeholder="Full Name" />
-    <input type="email" id="email" placeholder="Email" />
-    <input type="password" id="password" placeholder="Password" />
-    <button onclick="register()">Register</button>
-    <p>Already have an account? <a href="/">Login</a></p>
-  </div>
+<body class="bg-app">
+  <main class="center-wrap">
+    <section class="auth-card small">
+      <div class="brand-row">
+        <div class="logo-square">IL</div>
+        <h1>InstaLite</h1>
+      </div>
 
-  <script>
-    async function register() {
-      const name = document.getElementById("name").value;
-      const email = document.getElementById("email").value;
-      const password = document.getElementById("password").value;
+      <div class="card p-sm">
+        <input id="name" class="input" placeholder="Full name">
+        <input id="email" class="input" placeholder="Email" type="email">
+        <input id="password" class="input" placeholder="Password" type="password">
 
-      const res = await fetch("/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
+        <label class="muted small" style="margin-top:8px; display:block;">Profile photo (optional)</label>
 
-      const data = await res.json();
-      alert(data.message);
-      if (res.ok) window.location.href = "/";
-    }
-  </script>
+        <!-- Avatar preview + chooser -->
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+          <div style="width:84px;height:84px;">
+            <img id="avatarPreview" src="/mnt/data/c88561f6-b18c-4c2d-a4db-6fa3b8b7b23d.png" alt="preview"
+                 style="width:84px;height:84px;border-radius:999px;object-fit:cover;border:2px solid rgba(11,22,40,0.05)">
+          </div>
+          <div style="flex:1;">
+            <input id="avatarFile" type="file" accept="image/*">
+            <div class="small muted">Choose an image to preview. It will be uploaded when creating account.</div>
+          </div>
+        </div>
+
+        <button class="btn primary full" onclick="register()">Create account</button>
+        <div class="muted center small">Already registered? <a href="index.html">Login</a></div>
+      </div>
+    </section>
+  </main>
+
+<script>
+const API = "http://localhost:3000";
+
+// preview chosen file
+document.getElementById('avatarFile').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    document.getElementById('avatarPreview').src = reader.result;
+  };
+  reader.readAsDataURL(f);
+});
+
+async function uploadImage(file){
+  if(!file) return null;
+  const fd = new FormData(); fd.append('image', file);
+  const r = await fetch(API + '/upload', { method:'POST', body: fd });
+  if(!r.ok) return null;
+  const j = await r.json(); return j.url;
+}
+
+async function register(){
+  const name = document.getElementById('name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const file = document.getElementById('avatarFile').files[0];
+
+  if(!name || !email || !password) return alert('All fields required');
+
+  let avatar = null;
+  if(file){
+    // upload image first and capture returned url
+    const uploaded = await uploadImage(file);
+    if(!uploaded) return alert('Avatar upload failed');
+    avatar = uploaded;
+  }
+
+  const res = await fetch(API + '/register', {
+    method:'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ name, email, password, avatar })
+  });
+
+  const j = await res.json();
+  if(!res.ok) return alert(j.message || 'Register failed');
+
+  // auto-login after register
+  const loginRes = await fetch(API + '/login', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ email, password })
+  });
+  const loginJson = await loginRes.json();
+  if(!loginRes.ok) return alert(loginJson.message || 'Auto-login failed');
+
+  localStorage.setItem('user', JSON.stringify(loginJson.user || loginJson));
+  location.href = 'feed.html';
+}
+</script>
 </body>
 </html>

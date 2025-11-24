@@ -1,42 +1,94 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Login | Social Media</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Login • InstaLite</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
-  <div class="container">
-    <h2>Login</h2>
-    <input type="email" id="email" placeholder="Email" />
-    <input type="password" id="password" placeholder="Password" />
-    <button onclick="login()">Login</button>
-    <p>Don’t have an account? <a href="/register">Register</a></p>
+  <div class="container center" style="padding-top:60px; padding-bottom:60px;">
+    <div class="card" style="max-width:460px; width:100%;">
+      <div class="center" style="margin-bottom:10px;">
+        <img src="https://dummyimage.com/64x64/06b6d4/fff&text=IL" style="width:64px;height:64px;border-radius:10px;">
+        <h2 style="margin:8px 0 2px;">InstaLite</h2>
+        <div class="small muted">A polished social feed</div>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="loginBox">
+        <input id="loginEmail" class="input" type="email" placeholder="Email" style="margin-top:12px;">
+        <input id="loginPassword" class="input" type="password" placeholder="Password" style="margin-top:8px;">
+        <button class="btn btn-primary" style="width:100%; margin-top:12px;" onclick="login()">Log in</button>
+        <div class="center muted small" style="margin-top:12px;">
+          Don't have an account? <a href="#" onclick="showRegister()">Register</a>
+        </div>
+      </div>
+
+      <!-- REGISTER -->
+      <div id="registerBox" style="display:none;">
+        <input id="regName" class="input" placeholder="Full name" style="margin-top:12px;">
+        <input id="regEmail" class="input" type="email" placeholder="Email" style="margin-top:8px;">
+        <input id="regPassword" class="input" type="password" placeholder="Password" style="margin-top:8px;">
+        <label class="muted small" style="margin-top:8px; display:block;">Profile photo (optional)</label>
+        <input id="regAvatar" type="file" accept="image/*" style="margin-top:6px;">
+        <button class="btn btn-primary" style="width:100%; margin-top:12px;" onclick="register()">Create account</button>
+        <div class="center muted small" style="margin-top:12px;">
+          Have an account? <a href="#" onclick="showLogin()">Login</a>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script>
-    async function login(){
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+<script>
+const API = "http://localhost:3000";
+function showRegister(){ document.getElementById('loginBox').style.display='none'; document.getElementById('registerBox').style.display='block'; }
+function showLogin(){ document.getElementById('loginBox').style.display='block'; document.getElementById('registerBox').style.display='none'; }
 
-  const res = await fetch("http://localhost:3000/login", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({ email, password })
-  });
-
-  const data = await res.json();
-
-  if (data.error) {
-    alert(data.error);
-    return;
-  }
-
-  localStorage.setItem("user", JSON.stringify(data));
-  window.location.href = "/feed";
+async function uploadImage(file){
+  if(!file) return null;
+  const fd = new FormData(); fd.append('image', file);
+  const r = await fetch(API + '/upload', { method:'POST', body: fd });
+  if (!r.ok) return null;
+  const j = await r.json(); return j.url;
 }
 
-  </script>
+async function register(){
+  const name = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPassword').value;
+  const file = document.getElementById('regAvatar').files[0];
+  if(!name || !email || !password) return alert('Name, email & password required');
+
+  let avatar = null;
+  if (file) { avatar = await uploadImage(file); if (!avatar) return alert('Avatar upload failed'); }
+
+  const res = await fetch(API + '/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name, email, password, avatar })});
+  const j = await res.json();
+  if (!res.ok) return alert(j.message || 'Register failed');
+
+  // auto-login
+  const loginRes = await fetch(API + '/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password })});
+  const loginJson = await loginRes.json();
+  if (!loginRes.ok) return alert(loginJson.message || 'Auto-login failed');
+  const user = loginJson.user || loginJson;
+  localStorage.setItem('user', JSON.stringify(user));
+  window.location.href = 'feed.html';
+}
+
+async function login(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  if(!email || !password) return alert('Email & password required');
+
+  const res = await fetch(API + '/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password })});
+  const j = await res.json();
+  if(!res.ok) return alert(j.message || 'Login failed');
+
+  const user = j.user || j;
+  localStorage.setItem('user', JSON.stringify(user));
+  window.location.href = 'feed.html';
+}
+</script>
 </body>
 </html>

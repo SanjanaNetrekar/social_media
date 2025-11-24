@@ -1,48 +1,98 @@
-<!DOCTYPE html>
-<html><head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Messages</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head><body class="p-4">
-  <a href="feed.html">← Feed</a>
-  <h3 id="chatWith">Chat</h3>
-  <div id="messages" style="height:400px; overflow:auto; border:1px solid #ddd; padding:8px; margin-bottom:8px;"></div>
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Messages • InstaLite</title><link rel="stylesheet" href="style.css"><script src="/socket.io/socket.io.js" defer></script></head>
+<body>
+<header class="topbar small"><div class="top-inner"><div class="left"><div class="logo-square">IL</div><div class="app-title">InstaLite</div></div><div class="right"><button class="icon" onclick="location.href='feed.html'">Feed</button></div></div></header>
 
-  <div class="d-flex gap-2">
-    <input id="msgInput" class="form-control" placeholder="Write a message">
-    <button class="btn btn-primary" onclick="sendMsg()">Send</button>
-  </div>
+<main class="messages-wrap" style="max-width:1200px;margin:18px auto;">
+  <aside class="users-list card" style="min-height:520px;overflow:auto;">
+    <div style="font-weight:800;margin-bottom:12px">Chats</div>
+    <div id="usersList"></div>
+  </aside>
+
+  <section class="chat-area card" style="display:flex;flex-direction:column;min-height:520px;">
+    <div id="chatHeader" class="chat-header"><img id="chatAvatar" class="avatar-sm" src="/mnt/data/a2ec838d-f32b-43e1-8b47-ff7434b1674c.png" style="width:56px;height:56px"><div style="flex:1"><div id="chatName" style="font-weight:800">Select a chat</div><div id="typingIndicator" class="small muted"></div></div></div>
+    <div id="messagesWrap" class="chat-messages" style="flex:1;overflow:auto;padding:18px"></div>
+    <div class="chat-input" style="display:flex;gap:10px;align-items:center;padding:12px;border-top:1px solid rgba(11,22,40,0.04)"><input id="msgInput" class="input" placeholder="Write a message..." style="flex:1"><input id="msgFile" type="file" accept="image/*" style="display:none"><button class="btn ghost" onclick="document.getElementById('msgFile').click()">📷</button><button class="btn gradient" id="sendBtn">Send</button></div>
+  </section>
+</main>
 
 <script>
-const api = "http://localhost:3000";
-const user = JSON.parse(localStorage.getItem("user"));
-const chatWith = JSON.parse(localStorage.getItem("chatWith") || "null");
-if (!user) location.href="index.html";
-if (!chatWith) { document.getElementById("chatWith").innerText = "Select a user from Users page"; }
+const API = 'http://localhost:3000';
+const me = JSON.parse(localStorage.getItem('user'));
+if(!me) location.href='index.html';
+let currentChat = JSON.parse(localStorage.getItem('chatWith') || 'null');
 
-async function loadMessages() {
-  if (!chatWith) return;
-  document.getElementById("chatWith").innerText = `Chat with ${chatWith.name}`;
-  const res = await fetch(`${api}/messages/${user.id}/${chatWith.id}`);
-  const msgs = await res.json();
-  const box = document.getElementById("messages");
-  box.innerHTML = msgs.map(m => `<div><b>${m.sender_name}</b>: ${m.content || ''} ${m.image_url ? `<br><img src="${m.image_url}" style="max-width:200px" />` : ''}</div>`).join("<hr>");
-  box.scrollTop = box.scrollHeight;
-}
-
-async function sendMsg() {
-  if (!chatWith) return alert("Pick a user to chat with");
-  const content = document.getElementById("msgInput").value.trim();
-  if (!content) return;
-  await fetch(`${api}/message`, {
-    method: "POST", headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ sender_id: user.id, receiver_id: chatWith.id, content })
+const socket = (typeof io==='function')?io():null;
+if(socket && socket.emit) socket.emit('register', me.id);
+if(socket && socket.on){
+  socket.on('private_message', msg => {
+    if(currentChat && (msg.sender_id === currentChat.id || msg.receiver_id === currentChat.id)) appendMessage(msg);
+    else showToast(`${msg.sender_name || 'Someone'} sent a message`);
   });
-  document.getElementById("msgInput").value = "";
-  loadMessages();
+  socket.on('typing', ({from}) => { if(currentChat && currentChat.id===from){ document.getElementById('typingIndicator').innerText = currentChat.name + ' is typing...'; clearTimeout(window._t); window._t=setTimeout(()=>document.getElementById('typingIndicator').innerText='',1500); }});
 }
 
-loadMessages();
-setInterval(loadMessages, 3000); // refresh every 3s
+async function loadUsers(){
+  try{
+    const r = await fetch(API + '/users'); if(!r.ok) return;
+    const users = await r.json();
+    const wrap = document.getElementById('usersList'); wrap.innerHTML = '';
+    users.forEach(u => { if(u.id===me.id) return;
+      const avatar = u.avatar || '/mnt/data/a2ec838d-f32b-43e1-8b47-ff7434b1674c.png';
+      const node = document.createElement('div'); node.className='user-row'; node.style.display='flex'; node.style.gap='12px'; node.style.alignItems='center'; node.style.padding='10px'; node.style.cursor='pointer';
+      node.onclick = ()=> startChat(u.id,u.name, u.avatar);
+      node.innerHTML = `<img src="${avatar}" style="width:48px;height:48px;border-radius:10px;object-fit:cover"><div style="flex:1"><div style="font-weight:700">${escapeHtml(u.name||u.email)}</div><div class="small muted">${escapeHtml(u.email||'')}</div></div>`;
+      wrap.appendChild(node);
+    });
+  }catch(e){ console.error(e); }
+}
+
+async function startChat(id, name, avatar){
+  currentChat = { id, name, avatar };
+  localStorage.setItem('chatWith', JSON.stringify(currentChat));
+  await loadChat();
+}
+
+async function loadChat(){
+  const headerName = document.getElementById('chatName'); const avatarEl = document.getElementById('chatAvatar'); const wrap = document.getElementById('messagesWrap');
+  if(!currentChat){ headerName.innerText='Select a chat'; wrap.innerHTML=''; return; }
+  headerName.innerText = currentChat.name; avatarEl.src = currentChat.avatar || '/mnt/data/a2ec838d-f32b-43e1-8b47-ff7434b1674c.png';
+  try{
+    const r = await fetch(API + `/messages/${me.id}/${currentChat.id}`); if(!r.ok){ wrap.innerHTML='<div class="muted">No conversation</div>'; return; }
+    const msgs = await r.json(); wrap.innerHTML = ''; (msgs||[]).forEach(m=>appendMessage(m)); wrap.scrollTop = wrap.scrollHeight;
+  }catch(e){ console.error(e); wrap.innerHTML='<div class="muted">Error loading messages</div>'; }
+}
+
+function appendMessage(msg){
+  const wrap = document.getElementById('messagesWrap');
+  const mine = (msg.sender_id === me.id || msg.senderId === me.id);
+  const cont = document.createElement('div'); cont.style.display='flex'; cont.style.justifyContent = mine ? 'flex-end' : 'flex-start';
+  const bubble = document.createElement('div'); bubble.className = mine ? 'bubble me' : 'bubble them';
+  bubble.innerHTML = `${escapeHtml(msg.content||'')}${msg.image_url?`<div style="margin-top:8px"><img src="${msg.image_url}" style="max-width:260px;border-radius:10px"></div>`:''}<div class="small muted" style="margin-top:6px">${new Date(msg.created_at||msg.createdAt||Date.now()).toLocaleTimeString()}</div>`;
+  cont.appendChild(bubble); wrap.appendChild(cont); wrap.scrollTop = wrap.scrollHeight;
+}
+
+document.getElementById('msgInput').addEventListener('input', ()=>{ if(!currentChat) return; if(socket && socket.emit) socket.emit('typing',{from:me.id,to:currentChat.id}); });
+
+document.getElementById('sendBtn').addEventListener('click', async ()=>{
+  if(!currentChat) return alert('Select a chat first');
+  const content = document.getElementById('msgInput').value.trim();
+  const file = document.getElementById('msgFile').files[0];
+  let image_url = null;
+  if(file){ const fd=new FormData(); fd.append('image',file); const r = await fetch(API + '/upload', { method:'POST', body: fd }); if(!r.ok) return alert('Image upload failed'); image_url = (await r.json()).url; }
+  if(!content && !image_url) return;
+  if(socket && socket.emit) socket.emit('send_message', { sender_id: me.id, receiver_id: currentChat.id, content, image_url });
+  await fetch(API + '/message', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ sender_id: me.id, receiver_id: currentChat.id, content, image_url })});
+  appendMessage({ sender_id: me.id, content, image_url, created_at: new Date().toISOString() });
+  document.getElementById('msgInput').value=''; document.getElementById('msgFile').value='';
+});
+
+function showToast(text){ const t=document.createElement('div'); t.className='toast'; t.innerText=text; document.body.appendChild(t); setTimeout(()=>t.remove(),3000); }
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+loadUsers();
+if(currentChat) loadChat();
 </script>
-</body></html>
+</body>
+</html>

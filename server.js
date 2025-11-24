@@ -1,56 +1,138 @@
-// server.js
+require("dotenv").config();
 const express = require("express");
-const mysql = require("mysql2");
 const cors = require("cors");
-const bcrypt = require("bcrypt");
-const bodyParser = require("body-parser");
 const path = require("path");
-const multer = require("multer");
 const fs = require("fs");
+const multer = require("multer");
+const bcrypt = require("bcrypt");
+const db = require("./db");
+
+// NEW: http + socket.io
+const http = require("http");
+const { Server } = require("socket.io");
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static("public"));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// uploads folder
+// create http server
+const server = http.createServer(app);
+
+// socket.io server
+const io = new Server(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] },
+});
+
+// map of userId -> Set(socketIds)
+const onlineUsers = new Map();
+
+// SOCKET.IO EVENTS
+io.on("connection", (socket) => {
+  socket.on("register", (userId) => {
+    if (!userId) return;
+    const key = String(userId);
+    const set = onlineUsers.get(key) || new Set();
+    set.add(socket.id);
+    onlineUsers.set(key, set);
+    socket.join("user_" + key);
+    io.emit("user_online", { userId: Number(key) });
+  });
+
+  socket.on("typing", (payload) => {
+    if (!payload || !payload.to) return;
+    io.to("user_" + payload.to).emit("typing", { from: payload.from });
+  });
+
+  socket.on("send_message", async (payload) => {
+    try {
+      const { sender_id, receiver_id, content, image_url } = payload || {};
+      if (!sender_id || !receiver_id) return;
+
+      const [r] = await db.query(
+        "INSERT INTO messages(sender_id,receiver_id,content,image_url) VALUES (?,?,?,?)",
+        [sender_id, receiver_id, content, image_url]
+      );
+
+      const [u] = await db.query("SELECT name FROM users WHERE id=?", [sender_id]);
+      const sender_name = (u && u[0] && u[0].name) || "User";
+
+      const msg = {
+        id: r.insertId,
+        sender_id,
+        receiver_id,
+        content,
+        image_url,
+        created_at: new Date().toISOString(),
+        sender_name,
+      };
+
+      io.to("user_" + receiver_id).emit("private_message", msg);
+
+      const senderSockets = onlineUsers.get(String(sender_id));
+      if (senderSockets) {
+        for (const sid of senderSockets) io.to(sid).emit("message_sent", msg);
+      }
+    } catch (e) {
+      console.error("socket send_message failed", e);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    for (const [userId, sset] of onlineUsers.entries()) {
+      if (sset.has(socket.id)) {
+        sset.delete(socket.id);
+        if (sset.size === 0) {
+          onlineUsers.delete(userId);
+          io.emit("user_offline", { userId: Number(userId) });
+        } else {
+          onlineUsers.set(userId, sset);
+        }
+        break;
+      }
+    }
+  });
+});
+/* ======================================================================
+   STATIC FILES / UPLOADS
+====================================================================== */
+const PUBLIC_DIR = path.join(__dirname, "public");
+app.use(express.static(PUBLIC_DIR));
+
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use("/uploads", express.static(uploadsDir));
 
-// multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+  filename: (req, file, cb) =>
+    cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, "_")),
 });
 const upload = multer({ storage });
 
-// MySQL connection (update credentials if needed)
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "sanjana@2802",
-  database: "social_media",
-});
-db.connect((err) => {
-  if (err) console.error("DB connect error:", err);
-  else console.log("✅ MySQL connected");
-});
-
-// ----------------- AUTH USERS -----------------
+/* ======================================================================
+   AUTH
+====================================================================== */
 app.post("/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) return res.status(400).json({ message: "All fields required" });
+    const { name, email, password, avatar } = req.body;
+    if (!name || !email || !password)
+      return res.status(400).json({ message: "All fields required" });
 
-    const [exist] = await db.promise().query("SELECT id FROM users WHERE email = ?", [email]);
-    if (exist.length) return res.status(400).json({ message: "Email already registered" });
+    const [exists] = await db.query("SELECT id FROM users WHERE email = ?", [email]);
+    if (exists.length)
+      return res.status(400).json({ message: "Email already exists" });
 
     const hash = await bcrypt.hash(password, 10);
-    await db.promise().query("INSERT INTO users (name, email, password) VALUES (?, ?, ?)", [name, email, hash]);
-    res.json({ message: "Registered" });
-  } catch (err) {
-    console.error(err);
+
+    const [result] = await db.query(
+      "INSERT INTO users(name,email,password,avatar) VALUES (?,?,?,?)",
+      [name, email, hash, avatar || null]
+    );
+
+    res.json({ message: "Registered", userId: result.insertId });
+  } catch (e) {
+    console.log(e);
     res.status(500).json({ message: "Register failed" });
   }
 });
@@ -58,315 +140,549 @@ app.post("/register", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "Email & password required" });
-    const [rows] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
-    if (!rows.length) return res.status(404).json({ message: "User not found" });
+    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [email]);
+
+    if (!rows.length)
+      return res.status(404).json({ message: "Email not registered" });
+
     const user = rows[0];
     const ok = await bcrypt.compare(password, user.password);
-    if (!ok) return res.status(401).json({ message: "Invalid password" });
-    delete user.password;
-    res.json({ message: "Login successful", user: { id: user.id, name: user.name, email: user.email } });
-  } catch (err) {
-    console.error(err);
+    if (!ok) return res.status(401).json({ message: "Wrong password" });
+
+    const safeUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+    };
+
+    res.json({ message: "Login successful", user: safeUser });
+  } catch (e) {
     res.status(500).json({ message: "Login failed" });
   }
 });
 
-// ----------------- UPLOAD -----------------
-// POST /upload (form-data with key 'image') -> returns { url: "/uploads/..." }
+/* ======================================================================
+   UPLOADS
+====================================================================== */
 app.post("/upload", upload.single("image"), (req, res) => {
   if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-  const url = `/uploads/${req.file.filename}`;
-  res.json({ url });
+  res.json({ url: "/uploads/" + req.file.filename });
 });
 
-// ----------------- POSTS -----------------
+/* ======================================================================
+   POSTS
+====================================================================== */
 app.post("/addpost", async (req, res) => {
   try {
-    const { user_id, content, image_url, tags } = req.body; // tags optional (comma-separated or array)
-    if (!user_id || (!content && !image_url)) return res.status(400).json({ message: "User & content or image required" });
+    const { user_id, content, image_url } = req.body;
 
-    const [result] = await db.promise().query("INSERT INTO posts (user_id, content, image_url) VALUES (?, ?, ?)", [
+    const [r] = await db.query(
+      "INSERT INTO posts(user_id,content,image_url) VALUES (?,?,?)",
+      [user_id, content, image_url]
+    );
+
+    // Notify followers in real-time
+    const [followers] = await db.query(
+      "SELECT follower_id FROM followers WHERE followee_id=?",
+      [user_id]
+    );
+
+    const note = {
+      type: "new_post",
+      postId: r.insertId,
       user_id,
-      content || null,
-      image_url || null,
-    ]);
-    const postId = result.insertId;
+      content,
+      image_url,
+    };
 
-    // handle tags if provided (string or array)
-    if (tags) {
-      const tagList = Array.isArray(tags) ? tags : tags.split(",").map(t => t.trim()).filter(Boolean);
-      for (const t of tagList) {
-        const [existing] = await db.promise().query("SELECT id FROM tags WHERE name = ?", [t]);
-        let tagId;
-        if (existing.length) tagId = existing[0].id;
-        else {
-          const [r2] = await db.promise().query("INSERT INTO tags (name) VALUES (?)", [t]);
-          tagId = r2.insertId;
-        }
-        await db.promise().query("INSERT IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)", [postId, tagId]);
-      }
-    }
+    followers.forEach((f) => {
+      io.to("user_" + f.follower_id).emit("notification", note);
+    });
 
-    res.json({ message: "Post created", postId });
-  } catch (err) {
-    console.error("addpost:", err);
-    res.status(500).json({ message: "Failed to add post" });
+    res.json({ message: "Post added", postId: r.insertId });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Post creation failed" });
   }
 });
 
-// get all posts (with counts + image + tags)
 app.get("/allposts", async (req, res) => {
   try {
-    const [posts] = await db.promise().query(
-      `SELECT p.id, p.content, p.image_url, p.created_at, p.user_id, u.name,
-              (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS likes,
-              (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comments
-       FROM posts p JOIN users u ON p.user_id = u.id
+    const [posts] = await db.query(
+      `SELECT p.id,p.content,p.image_url,p.created_at,p.user_id,
+              u.name,u.avatar,
+              (SELECT COUNT(*) FROM likes WHERE post_id=p.id) AS likes,
+              (SELECT COUNT(*) FROM comments WHERE post_id=p.id) AS comments
+       FROM posts p
+       JOIN users u ON p.user_id=u.id
        ORDER BY p.created_at DESC`
     );
 
-    // fetch tags for all posts in one go
-    const postIds = posts.map(p => p.id);
-    let tagsMap = {};
-    if (postIds.length) {
-      const [pt] = await db.promise().query(
-        `SELECT pt.post_id, t.name FROM post_tags pt JOIN tags t ON pt.tag_id = t.id WHERE pt.post_id IN (?)`,
-        [postIds]
-      );
-      pt.forEach(r => {
-        tagsMap[r.post_id] = tagsMap[r.post_id] || [];
-        tagsMap[r.post_id].push(r.name);
-      });
-    }
+    const ids = posts.map((p) => p.id);
 
-    // attach tags
-    posts.forEach(p => (p.tags = tagsMap[p.id] || []));
-
-    res.json(posts);
-  } catch (err) {
-    console.error("allposts:", err);
-    res.status(500).json({ message: "Error fetching posts" });
-  }
-});
-
-// get posts by tag
-app.get("/postsbytag/:tag", async (req, res) => {
-  const tag = req.params.tag;
-  try {
-    const [rows] = await db.promise().query(
-      `SELECT p.id, p.content, p.image_url, p.created_at, p.user_id, u.name,
-              (SELECT COUNT(*) FROM likes WHERE post_id = p.id) AS likes,
-              (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comments
-       FROM posts p
-       JOIN post_tags pt ON p.id = pt.post_id
-       JOIN tags t ON pt.tag_id = t.id
-       JOIN users u ON p.user_id = u.id
-       WHERE t.name = ?
-       ORDER BY p.created_at DESC`,
-      [tag]
-    );
-
-    // attach post tags (optional)
-    const ids = rows.map(r => r.id);
-    if (ids.length) {
-      const [pt] = await db.promise().query(
-        `SELECT pt.post_id, t.name FROM post_tags pt JOIN tags t ON pt.tag_id = t.id WHERE pt.post_id IN (?)`,
+    if (ids.length > 0) {
+      const [tags] = await db.query(
+        `SELECT pt.post_id,t.name 
+         FROM post_tags pt 
+         JOIN tags t ON pt.tag_id=t.id 
+         WHERE pt.post_id IN (?)`,
         [ids]
       );
-      const tagsMap = {};
-      pt.forEach(r => {
-        tagsMap[r.post_id] = tagsMap[r.post_id] || [];
-        tagsMap[r.post_id].push(r.name);
+
+      const map = {};
+      tags.forEach((t) => {
+        map[t.post_id] = map[t.post_id] || [];
+        map[t.post_id].push(t.name);
       });
-      rows.forEach(r => (r.tags = tagsMap[r.id] || []));
+
+      posts.forEach((p) => (p.tags = map[p.id] || []));
     }
 
-    res.json(rows);
-  } catch (err) {
-    console.error("postsbytag:", err);
-    res.status(500).json({ message: "Error fetching by tag" });
+    res.json(posts);
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Failed to load posts" });
   }
 });
 
-// ----------------- LIKES -----------------
+app.delete("/deletepost/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    await db.query("DELETE FROM post_tags WHERE post_id=?", [id]);
+    await db.query("DELETE FROM likes WHERE post_id=?", [id]);
+    await db.query("DELETE FROM comments WHERE post_id=?", [id]);
+    await db.query("DELETE FROM posts WHERE id=?", [id]);
+
+    res.json({ message: "Deleted" });
+  } catch (e) {
+    res.status(500).json({ message: "Delete failed" });
+  }
+});
+
+/* ======================================================================
+   LIKES — realtime notification to post owner
+====================================================================== */
 app.post("/like", async (req, res) => {
   try {
     const { post_id, user_id } = req.body;
-    if (!post_id || !user_id) return res.status(400).json({ message: "Missing" });
 
-    const [ex] = await db.promise().query("SELECT id FROM likes WHERE post_id = ? AND user_id = ?", [post_id, user_id]);
-    if (ex.length) {
-      await db.promise().query("DELETE FROM likes WHERE id = ?", [ex[0].id]);
+    const [exists] = await db.query(
+      "SELECT id FROM likes WHERE post_id=? AND user_id=?",
+      [post_id, user_id]
+    );
+
+    if (exists.length) {
+      await db.query("DELETE FROM likes WHERE id=?", [exists[0].id]);
       return res.json({ message: "Unliked" });
-    } else {
-      await db.promise().query("INSERT INTO likes (post_id, user_id) VALUES (?, ?)", [post_id, user_id]);
-      return res.json({ message: "Liked" });
     }
-  } catch (err) {
-    console.error("like:", err);
-    res.status(500).json({ message: "Error liking" });
+
+    await db.query("INSERT INTO likes(post_id,user_id) VALUES(?,?)", [
+      post_id,
+      user_id,
+    ]);
+
+    // find owner
+    const [p] = await db.query("SELECT user_id FROM posts WHERE id=?", [post_id]);
+
+    if (p && p[0]) {
+      const ownerId = p[0].user_id;
+
+      const [u] = await db.query("SELECT name FROM users WHERE id=?", [user_id]);
+      const fromName = (u && u[0] && u[0].name) || "Someone";
+
+      const note = {
+        type: "like",
+        from: user_id,
+        fromName,
+        post_id,
+      };
+
+      io.to("user_" + ownerId).emit("notification", note);
+    }
+
+    res.json({ message: "Liked" });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Like failed" });
   }
 });
-
-// ----------------- COMMENTS -----------------
+/* ======================================================================
+   COMMENTS — realtime notification
+====================================================================== */
 app.post("/comment", async (req, res) => {
   try {
     const { post_id, user_id, content } = req.body;
-    if (!post_id || !user_id || !content) return res.status(400).json({ message: "Missing" });
-    await db.promise().query("INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)", [post_id, user_id, content]);
-    res.json({ message: "Comment added" });
-  } catch (err) {
-    console.error("comment:", err);
-    res.status(500).json({ message: "Error commenting" });
-  }
-});
 
-app.get("/comments/:post_id", async (req, res) => {
-  try {
-    const [rows] = await db.promise().query(
-      `SELECT c.id, c.content, c.created_at, u.name
-       FROM comments c JOIN users u ON c.user_id = u.id
-       WHERE c.post_id = ?
-       ORDER BY c.created_at DESC`,
-      [req.params.post_id]
+    await db.query(
+      "INSERT INTO comments(post_id,user_id,content) VALUES (?,?,?)",
+      [post_id, user_id, content]
     );
-    res.json(rows);
-  } catch (err) {
-    console.error("getcomments:", err);
-    res.status(500).json({ message: "Error fetching comments" });
+
+    // notify post owner
+    const [p] = await db.query("SELECT user_id FROM posts WHERE id=?", [
+      post_id,
+    ]);
+
+    if (p && p[0]) {
+      const ownerId = p[0].user_id;
+
+      const [u] = await db.query(
+        "SELECT name FROM users WHERE id=?",
+        [user_id]
+      );
+      const fromName = (u && u[0] && u[0].name) || "Someone";
+
+      const note = {
+        type: "comment",
+        from: user_id,
+        fromName,
+        post_id,
+        content,
+      };
+
+      io.to("user_" + ownerId).emit("notification", note);
+    }
+
+    res.json({ message: "Comment added" });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Comment failed" });
   }
 });
 
-// ----------------- FOLLOWERS -----------------
+/* ======================================================================
+   FOLLOW / UNFOLLOW
+====================================================================== */
 app.post("/follow", async (req, res) => {
   try {
     const { follower_id, followee_id } = req.body;
-    if (!follower_id || !followee_id) return res.status(400).json({ message: "Missing" });
-    await db.promise().query("INSERT IGNORE INTO followers (follower_id, followee_id) VALUES (?, ?)", [follower_id, followee_id]);
-    res.json({ message: "Now following" });
-  } catch (err) {
-    console.error("follow:", err);
-    res.status(500).json({ message: "Error following" });
+
+    await db.query(
+      "INSERT IGNORE INTO followers(follower_id,followee_id) VALUES (?,?)",
+      [follower_id, followee_id]
+    );
+
+    // notify
+    const [u] = await db.query("SELECT name FROM users WHERE id=?", [
+      follower_id,
+    ]);
+    const fromName = (u && u[0] && u[0].name) || "Someone";
+
+    const note = { type: "follow", from: follower_id, fromName };
+
+    io.to("user_" + followee_id).emit("notification", note);
+
+    res.json({ message: "Followed" });
+  } catch (e) {
+    res.status(500).json({ message: "Follow failed" });
   }
 });
+
 app.post("/unfollow", async (req, res) => {
   try {
     const { follower_id, followee_id } = req.body;
-    await db.promise().query("DELETE FROM followers WHERE follower_id = ? AND followee_id = ?", [follower_id, followee_id]);
+
+    await db.query(
+      "DELETE FROM followers WHERE follower_id=? AND followee_id=?",
+      [follower_id, followee_id]
+    );
+
     res.json({ message: "Unfollowed" });
-  } catch (err) {
-    console.error("unfollow:", err);
-    res.status(500).json({ message: "Error unfollowing" });
-  }
-});
-app.get("/followers/:user_id", async (req, res) => {
-  try {
-    const [rows] = await db.promise().query(`SELECT u.id, u.name FROM followers f JOIN users u ON f.follower_id = u.id WHERE f.followee_id = ?`, [req.params.user_id]);
-    res.json(rows);
-  } catch (err) {
-    console.error("followers:", err);
-    res.status(500).json({ message: "Error" });
-  }
-});
-app.get("/following/:user_id", async (req, res) => {
-  try {
-    const [rows] = await db.promise().query(`SELECT u.id, u.name FROM followers f JOIN users u ON f.followee_id = u.id WHERE f.follower_id = ?`, [req.params.user_id]);
-    res.json(rows);
-  } catch (err) {
-    console.error("following:", err);
-    res.status(500).json({ message: "Error" });
+  } catch (e) {
+    res.status(500).json({ message: "Unfollow failed" });
   }
 });
 
-// ----------------- MESSAGES (simple) -----------------
-app.post("/message", async (req, res) => {
+/* ======================================================================
+   FOLLOWERS LIST
+====================================================================== */
+app.get("/followers/:id", async (req, res) => {
   try {
-    const { sender_id, receiver_id, content } = req.body;
-    if (!sender_id || !receiver_id) return res.status(400).json({ message: "Missing" });
-    await db.promise().query("INSERT INTO messages (sender_id, receiver_id, message) VALUES (?, ?, ?)", [sender_id, receiver_id, content]);
-    res.json({ message: "Message sent" });
-  } catch (err) {
-    console.error("message:", err);
-    res.status(500).json({ message: "Error sending message" });
+    const id = req.params.id;
+
+    const [rows] = await db.query(
+      `SELECT u.id,u.name,u.email,u.avatar 
+       FROM followers f
+       JOIN users u ON f.follower_id=u.id
+       WHERE f.followee_id=?`,
+      [id]
+    );
+
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ message: "Followers load failed" });
   }
 });
+
+app.get("/following/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const [rows] = await db.query(
+      `SELECT u.id,u.name,u.email,u.avatar 
+       FROM followers f
+       JOIN users u ON f.followee_id=u.id
+       WHERE f.follower_id=?`,
+      [id]
+    );
+
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ message: "Following load failed" });
+  }
+});
+
+app.get("/isfollowing/:me/:other", async (req, res) => {
+  try {
+    const { me, other } = req.params;
+
+    const [rows] = await db.query(
+      "SELECT id FROM followers WHERE follower_id=? AND followee_id=?",
+      [me, other]
+    );
+
+    res.json({ following: rows.length > 0 });
+  } catch (e) {
+    res.status(500).json({ message: "Follow check failed" });
+  }
+});
+
+/* ======================================================================
+   MESSAGES (FIXED — uses content)
+====================================================================== */
+app.post("/message", async (req, res) => {
+  try {
+    const { sender_id, receiver_id, content, image_url } = req.body;
+
+    const [r] = await db.query(
+      "INSERT INTO messages(sender_id,receiver_id,content,image_url) VALUES (?,?,?,?)",
+      [sender_id, receiver_id, content, image_url]
+    );
+
+    const [u] = await db.query("SELECT name FROM users WHERE id=?", [
+      sender_id,
+    ]);
+    const sender_name = (u && u[0] && u[0].name) || "User";
+
+    const msg = {
+      id: r.insertId,
+      sender_id,
+      receiver_id,
+      content,
+      image_url,
+      created_at: new Date().toISOString(),
+      sender_name,
+    };
+
+    // send private message
+    io.to("user_" + receiver_id).emit("private_message", msg);
+
+    // notify inbox
+    io.to("user_" + receiver_id).emit("notification", {
+      type: "message",
+      from: sender_id,
+      fromName: sender_name,
+      messageId: r.insertId,
+    });
+
+    // ack to sender
+    const set = onlineUsers.get(String(sender_id));
+    if (set) {
+      for (const sid of set) {
+        io.to(sid).emit("message_sent", msg);
+      }
+    }
+
+    res.json({ message: "Sent" });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Message failed" });
+  }
+});
+
 app.get("/messages/:a/:b", async (req, res) => {
   try {
     const { a, b } = req.params;
-    const [rows] = await db.promise().query(
-      `SELECT m.id, m.message, m.created_at, s.name AS sender_name
-       FROM messages m JOIN users s ON m.sender_id = s.id
-       WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)
-       ORDER BY m.created_at ASC`,
+
+    const [rows] = await db.query(
+      `SELECT m.id,m.content,m.image_url,m.created_at,
+              m.sender_id,
+              u.name AS sender_name
+       FROM messages m
+       JOIN users u ON m.sender_id=u.id
+       WHERE (sender_id=? AND receiver_id=?) 
+          OR (sender_id=? AND receiver_id=?)
+       ORDER BY created_at ASC`,
       [a, b, b, a]
     );
+
     res.json(rows);
-  } catch (err) {
-    console.error("messages get:", err);
-    res.status(500).json({ message: "Error fetching messages" });
+  } catch (e) {
+    res.status(500).json({ message: "Messages load failed" });
   }
 });
 
-// ----------------- TAGS / POST_TAGS (create & list) -----------------
+/* ======================================================================
+   TAGS
+====================================================================== */
 app.post("/createtag", async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ message: "Tag name required" });
-    await db.promise().query("INSERT IGNORE INTO tags (name) VALUES (?)", [name]);
-    res.json({ message: "Tag created/exists" });
-  } catch (err) {
-    console.error("createtag:", err);
-    res.status(500).json({ message: "Error creating tag" });
+    await db.query("INSERT IGNORE INTO tags(name) VALUES (?)", [
+      req.body.name,
+    ]);
+    res.json({ message: "Tag saved" });
+  } catch (e) {
+    res.status(500).json({ message: "Tag failed" });
   }
 });
+
 app.get("/tags", async (req, res) => {
-  try {
-    const [rows] = await db.promise().query("SELECT * FROM tags ORDER BY name");
-    res.json(rows);
-  } catch (err) {
-    console.error("tags:", err);
-    res.status(500).json({ message: "Error fetching tags" });
-  }
+  const [rows] = await db.query("SELECT * FROM tags ORDER BY name");
+  res.json(rows);
 });
-app.post("/addtagtopost", async (req, res) => {
+
+app.get("/postsbytag/:name", async (req, res) => {
   try {
-    const { post_id, tag_id } = req.body;
-    if (!post_id || !tag_id) return res.status(400).json({ message: "Missing" });
-    await db.promise().query("INSERT IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)", [post_id, tag_id]);
-    res.json({ message: "Tag added to post" });
-  } catch (err) {
-    console.error("addtagtopost:", err);
-    res.status(500).json({ message: "Error adding tag to post" });
-  }
-});
-app.get("/posttags/:post_id", async (req, res) => {
-  try {
-    const [rows] = await db.promise().query(`SELECT t.id, t.name FROM post_tags pt JOIN tags t ON pt.tag_id = t.id WHERE pt.post_id = ?`, [req.params.post_id]);
+    const [rows] = await db.query(
+      `SELECT p.*,u.name,u.avatar FROM posts p
+       JOIN post_tags pt ON p.id=pt.post_id
+       JOIN tags t ON pt.tag_id=t.id
+       JOIN users u ON p.user_id=u.id
+       WHERE t.name=?
+       ORDER BY p.created_at DESC`,
+      [req.params.name]
+    );
     res.json(rows);
-  } catch (err) {
-    console.error("posttags:", err);
-    res.status(500).json({ message: "Error fetching post tags" });
+  } catch (e) {
+    res.status(500).json({ message: "Tag posts failed" });
   }
 });
 
-// ----------------- USERS LIST (helper) -----------------
+/* ======================================================================
+   USERS + PROFILE
+====================================================================== */
 app.get("/users", async (req, res) => {
+  const [rows] = await db.query(
+    "SELECT id,name,email,avatar FROM users ORDER BY name"
+  );
+  res.json(rows);
+});
+
+app.get("/userposts/:id", async (req, res) => {
+  const [rows] = await db.query(
+    "SELECT * FROM posts WHERE user_id=? ORDER BY created_at DESC",
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
+app.put("/user/:id", async (req, res) => {
   try {
-    const [rows] = await db.promise().query("SELECT id, name, email FROM users ORDER BY name");
-    res.json(rows);
-  } catch (err) {
-    console.error("users:", err);
-    res.status(500).json({ message: "Error fetching users" });
+    const id = req.params.id;
+    const { name, email, password, avatar } = req.body;
+
+    if (!name || !email)
+      return res.status(400).json({ message: "Name & email required" });
+
+    const [others] = await db.query(
+      "SELECT id FROM users WHERE email=? AND id!=?",
+      [email, id]
+    );
+    if (others.length)
+      return res.status(400).json({ message: "Email already used" });
+
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      await db.query(
+        "UPDATE users SET name=?,email=?,password=?,avatar=? WHERE id=?",
+        [name, email, hash, avatar || null, id]
+      );
+    } else {
+      await db.query(
+        "UPDATE users SET name=?,email=?,avatar=? WHERE id=?",
+        [name, email, avatar || null, id]
+      );
+    }
+
+    const [user] = await db.query(
+      "SELECT id,name,email,avatar FROM users WHERE id=?",
+      [id]
+    );
+
+    res.json({ message: "Updated", user: user[0] });
+  } catch (e) {
+    res.status(500).json({ message: "Update failed" });
   }
 });
 
-// ----------------- SERVE PAGES -----------------
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "public", "index.html")));
-app.get("/feed", (req, res) => res.sendFile(path.join(__dirname, "public", "feed.html")));
-app.get("/users", (req, res) => res.sendFile(path.join(__dirname, "public", "users.html")));
-app.get("/tagspage", (req, res) => res.sendFile(path.join(__dirname, "public", "tags.html")));
+// === Compatibility & story upload endpoints (ADD THIS) ===
+// Add this near your other endpoints (above the server listen call).
 
-// ----------------- START -----------------
-const PORT = 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+// POST /updateUser - compatibility alias for older frontends
+app.post('/updateUser', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const id = payload.id;
+    if (!id) return res.status(400).json({ message: 'Missing id' });
+
+    let name = payload.name || null;
+    let email = payload.email || null;
+    const password = payload.password || null;
+    const avatar = payload.avatar || payload.image || null;
+
+    // If password provided, hash & update it
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      await db.query('UPDATE users SET name=?, email=?, password=?, avatar=? WHERE id=?', [name, email, hash, avatar, id]);
+    } else {
+      // Keep existing email if not provided
+      if (!email) {
+        const [rows] = await db.query('SELECT email FROM users WHERE id=?', [id]);
+        if (rows && rows[0]) email = rows[0].email;
+      }
+      await db.query('UPDATE users SET name=?, email=?, avatar=? WHERE id=?', [name, email, avatar, id]);
+    }
+
+    const [userRows] = await db.query('SELECT id,name,email,avatar FROM users WHERE id=?', [id]);
+    res.json({ message: 'Updated', user: (userRows && userRows[0]) || null });
+  } catch (e) {
+    console.error('updateUser failed', e);
+    res.status(500).json({ message: 'Update failed' });
+  }
+});
+
+// POST /uploadstory - upload image and optionally persist a stories row
+// (re-uses your existing multer `upload` middleware; ensure `upload` is defined in server.js)
+app.post('/uploadstory', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const url = '/uploads/' + req.file.filename;
+    const user_id = req.body.user_id || null;
+
+    // Try to insert a story row if a stories table exists. If it doesn't, ignore the error.
+    if (user_id) {
+      try {
+        await db.query('INSERT INTO stories (user_id, image_url, created_at) VALUES (?, ?, NOW())', [user_id, url]);
+      } catch (err) {
+        // Table may not exist — ignore but log
+        console.warn('Could not insert story row (table may be missing):', err.message);
+      }
+    }
+
+    res.json({ message: 'Story uploaded', url });
+  } catch (e) {
+    console.error('uploadstory failed', e);
+    res.status(500).json({ message: 'Story upload failed' });
+  }
+});
+
+
+/* ======================================================================
+   START SERVER
+====================================================================== */
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () =>
+  console.log(`Server running on http://localhost:${PORT}`)
+);
