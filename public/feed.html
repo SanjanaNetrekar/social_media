@@ -1,481 +1,333 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Feed • InstaLite</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css">
   <style>
-    .avatar-sm{width:44px;height:44px;border-radius:10px;object-fit:cover}
-    .avatar-md{width:72px;height:72px;border-radius:12px;object-fit:cover}
-    .post-image{width:100%;border-radius:12px;margin-top:12px;display:block}
-    .follow-btn{padding:6px 12px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);cursor:pointer}
-    .follow-btn.following{background:#111;color:#fff;border-color:transparent}
-    .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,0.06);margin-bottom:18px}
-    .muted{color:#666}
-    .link{color:#5c2cf3;cursor:pointer;text-decoration:underline}
-    .hidden{display:none}
-    .modal { position: fixed; left:0; right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.35); }
-    .modal-inner { background:#fff; border-radius:12px; max-width:760px; width:96%; padding:18px; max-height:80vh; overflow:auto; box-shadow:0 10px 40px rgba(0,0,0,0.2); }
-    .heart { cursor:pointer; font-size:18px; border:none; background:transparent; }
-    .heart.liked { color: #ff2d55; transform: scale(1.06); }
-    .suggestion-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-    .story-item{display:inline-block;margin-right:8px}
-    .story-item img{width:72px;height:72px;border-radius:999px;object-fit:cover;border:4px solid #fff;box-shadow:0 12px 30px rgba(11,22,40,0.06);cursor:pointer}
-    .search-results{background:#fff;border-radius:8px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,0.08);position:absolute;z-index:60;max-height:300px;overflow:auto;width:520px}
-    .search-item{padding:8px;border-radius:6px;cursor:pointer}
-    .search-item:hover{background:#f5f5ff}
-    .post-actions{display:flex;gap:8px;align-items:center}
-    .delete-btn{background:transparent;border:0;color:#b00;cursor:pointer}
+    :root{ --muted:#7b7b7b; --accent1:linear-gradient(90deg,#06b6d4,#7c3aed); }
+    body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto;margin:0;background:linear-gradient(180deg,#fbfbfd,#f6f2fb);}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:var(--accent1);color:#fff}
+    .logo{font-weight:800;font-size:20px}
+    .search{width:50%;max-width:720px}
+    .search input{width:100%;padding:12px 16px;border-radius:999px;border:none;outline:none}
+    .main{display:flex;gap:22px;width:94%;margin:22px auto}
+    .col{background:#fff;border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(20,20,40,0.06)}
+    .left{width:23%}.center{width:54%}.right{width:23%}
+    .profile-mini{display:flex;gap:12px;align-items:center}
+    .profile-mini img{width:84px;height:84px;border-radius:12px;object-fit:cover;cursor:pointer}
+    .post-create textarea{width:100%;height:70px;padding:12px;border-radius:10px;border:1px solid #f0f0f0;resize:none}
+    .post-create .row{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+    .post-card{padding:14px;border-radius:12px;margin-top:14px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.03)}
+    .post-card .meta{display:flex;gap:12px;align-items:flex-start}
+    .post-card img.post-image{width:100%;margin-top:12px;border-radius:12px;object-fit:cover}
+    .btn{padding:8px 14px;border-radius:12px;border:none;cursor:pointer}
+    .follow-btn{background:#f0f0f0}
+    .follow-btn.following{background:#111;color:#fff}
+    .muted{color:var(--muted);font-size:13px}
+    .small{font-size:12px;color:var(--muted)}
+    .post-actions{display:flex;gap:8px;margin-top:10px;align-items:center}
+    .like-btn.liked{color:#e63946;font-weight:700}
+    .empty-placeholder{min-height:260px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
   </style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="top-inner" style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:linear-gradient(90deg,#00b4ff,#7a3cff);color:#fff">
-    <div style="display:flex;align-items:center;gap:12px">
-      <div style="width:48px;height:48px;border-radius:12px;background:#fff;color:#7a3cff;display:flex;align-items:center;justify-content:center;font-weight:800">IL</div>
-      <div style="font-weight:800;font-size:20px">InstaLite</div>
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:18px">
+      <div class="logo">InstaLite</div>
+      <button class="btn" onclick="location.href='users.html'">Users</button>
     </div>
 
-    <div style="flex:1;display:flex;justify-content:center;padding:0 20px;position:relative">
-      <div style="width:560px;background:#fff;border-radius:40px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 6px 18px rgba(0,0,0,0.06);position:relative">
-        <svg width="18" height="18" viewBox="0 0 24 24" style="margin-right:10px"><path fill="#9aa" d="M9.5 3a6.5 6.5 0 0 1 5.2 10.3l4 4A1 1 0 0 1 18.8 19l-4-4A6.5 6.5 0 1 1 9.5 3m0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z"/></svg>
-        <input id="search" placeholder="Search users or #tags..." style="border:none;outline:none;flex:1;font-size:15px" />
-      </div>
-      <div id="searchResults" class="search-results hidden"></div>
-    </div>
+    <div class="search"><input id="searchInput" placeholder="Search users by name or #tag..."></div>
 
     <div style="display:flex;gap:12px;align-items:center">
-      <button class="nav-btn" onclick="location.href='users.html'">Users</button>
-      <button class="nav-btn" onclick="location.href='messages.html'">Messages</button>
-      <img id="meAvatarTop" src="" style="width:40px;height:40px;border-radius:10px;object-fit:cover;cursor:pointer" onclick="goToMyProfile()" />
+      <button class="btn" onclick="location.href='messages.html'">Messages</button>
+      <img id="topAvatar" src="" style="width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer" title="My profile">
     </div>
   </div>
-</header>
 
-<main style="display:grid;grid-template-columns: 300px 1fr 320px; gap:24px;padding:24px;">
-
-  <aside>
-    <div class="card" id="leftProfile">
-      <img id="leftAvatar" class="avatar-md" src="">
-      <div style="font-weight:800;margin-top:8px" id="leftName">Name</div>
-      <div class="muted" id="leftEmail">email</div>
-      <div style="margin-top:10px">
-        <button id="addStoryBtn" style="width:40px;height:40px;border-radius:10px;border:1px dashed #ccc;background:#fff;cursor:pointer">+</button>
-      </div>
-      <div class="muted" style="margin-top:10px;font-size:13px">Tap + to add a story for your followers</div>
-    </div>
-
-    <div class="card" style="margin-top:14px">
-      <div style="font-weight:700;margin-bottom:12px">Stories</div>
-      <div id="stories" style="display:flex"></div>
-      <div style="margin-top:12px"><button onclick="document.getElementById('storyFile').click()">+ Add Story</button><input id="storyFile" type="file" accept="image/*" class="hidden" onchange="uploadStory(event)"></div>
-    </div>
-  </aside>
-
-  <section>
-    <div class="card" style="display:flex;gap:12px;align-items:flex-start">
-      <img id="composerAvatar" class="avatar-sm" src="">
-      <div style="flex:1">
-        <textarea id="composer" placeholder="Share something awesome..." style="width:100%;height:80px;border-radius:12px;padding:12px;border:1px solid #eef;outline:none"></textarea>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-          <div>
-            <input id="postImage" type="file" accept="image/*" style="display:none">
-            <button onclick="document.getElementById('postImage').click()" class="btn">📷 Photo</button>
-          </div>
-          <div><button onclick="createPost()" class="btn gradient">Post</button></div>
+  <div class="main">
+    <div class="col left">
+      <div class="profile-mini">
+        <img id="leftAvatar" src="">
+        <div>
+          <div id="leftName" style="font-weight:700"></div>
+          <div id="leftEmail" class="muted"></div>
+          <div style="margin-top:10px"><button class="btn" onclick="goToProfileId(me?.id)">View Profile</button></div>
         </div>
       </div>
+      <div style="margin-top:14px">
+        <div style="font-weight:700;margin-bottom:8px">Stories</div>
+        <div><button class="btn" onclick="alert('Stories coming soon')">+ Add Story</button></div>
+      </div>
     </div>
 
-    <div id="feedList" style="margin-top:18px"></div>
-  </section>
+    <div class="col center">
+      <div class="post-create">
+        <textarea id="postText" placeholder="Share something awesome..."></textarea>
+        <div class="row">
+          <div><input type="file" id="postFile" accept="image/*"></div>
+          <div><button class="btn" style="background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff" onclick="createPost()">Post</button></div>
+        </div>
+      </div>
 
-  <aside>
-    <div class="card">
-      <div style="font-weight:700;margin-bottom:12px">Suggestions</div>
-      <div id="suggestions"></div>
+      <div id="feedList" class="empty-placeholder">Loading posts...</div>
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <div style="font-weight:700;margin-bottom:12px">Trending tags</div>
-      <div id="trending">No trending tags</div>
-    </div>
-  </aside>
-
-</main>
-
-<div id="commentsModal" class="modal hidden">
-  <div class="modal-inner">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <strong>Comments</strong>
-      <button onclick="closeComments()">Close</button>
-    </div>
-    <div id="commentsList" style="margin-top:12px"></div>
-    <div style="display:flex;gap:8px;margin-top:12px">
-      <input id="commentInput" placeholder="Write a comment..." style="flex:1;padding:10px;border-radius:8px;border:1px solid #eee">
-      <button id="sendCommentBtn" class="btn gradient">Send</button>
+    <div class="col right">
+      <div style="font-weight:700;margin-bottom:10px">Suggestions</div>
+      <div id="suggestionList"></div>
+      <div style="margin-top:18px">
+        <div style="font-weight:700;margin-bottom:8px">Trending tags</div>
+        <div id="tagsBox" class="muted">No trending tags</div>
+      </div>
     </div>
   </div>
-</div>
 
 <script>
-/* CONFIG */
-const API = 'http://localhost:3000';
-const DEFAULT_AV = '/mnt/data/a2ec838d-f32b-43e1-8b47-ff7434b1674c.png';
+  const API = "http://localhost:3000";
+  const DEFAULT_AV = "/uploads/default-avatar.png"; // not critical, server avatars override
 
-/* USER */
-let me = null;
-try { me = JSON.parse(localStorage.getItem('user') || 'null'); } catch(e){ me = null; }
+  // current logged-in user from localStorage
+  let me = null;
+  try { me = JSON.parse(localStorage.getItem("user") || "null"); } catch(e){ me = null; }
+  if(me && me.id) me.id = String(me.id);
 
-/* HELPERS */
-function esc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function goToProfileId(id){ if(!id) return; location.href = 'profile.html?id=' + encodeURIComponent(id); }
-function goToMyProfile(){ if(me) goToProfileId(me.id); else location.href='index.html'; }
+  const el = id => document.getElementById(id);
+  const esc = s => { if(s===null||s===undefined) return ""; return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function goToProfileId(id){ if(!id) return; location.href = "profile.html?id=" + encodeURIComponent(String(id)); }
 
-/* Robust author/user id extractor (used everywhere) */
-function extractAuthorId(post){
-  if(!post) return null;
-  if(post.user_id) return String(post.user_id);
-  if(post.userId) return String(post.userId);
-  if(post.author_id) return String(post.author_id);
-  if(post.authorId) return String(post.authorId);
-  if(post.posted_by) return String(post.posted_by);
-  if(post.user && (post.user.id || post.user._id)) return String(post.user.id || post.user._id);
-  if(post.author && (post.author.id || post.author._id)) return String(post.author.id || post.author._id);
-  if(post.owner && (post.owner.id || post.owner._id)) return String(post.owner.id || post.owner._id);
-  if(typeof post.user === 'string') return post.user;
-  return String(post.user_id || post.user || post.author || post.id || '');
-}
-
-/* UI init */
-document.addEventListener('DOMContentLoaded', () => {
+  // UI setup
   if(me){
-    document.getElementById('leftAvatar').src = me.avatar || DEFAULT_AV;
-    document.getElementById('composerAvatar').src = me.avatar || DEFAULT_AV;
-    document.getElementById('meAvatarTop').src = me.avatar || DEFAULT_AV;
-    document.getElementById('leftName').innerText = me.name || 'You';
-    document.getElementById('leftEmail').innerText = me.email || '';
+    el("topAvatar").src = me.avatar || DEFAULT_AV;
+    el("leftAvatar").src = me.avatar || DEFAULT_AV;
+    el("leftName").innerText = me.name || me.email || "Me";
+    el("leftEmail").innerText = me.email || "";
+    el("topAvatar").onclick = ()=> goToProfileId(me.id);
   }
-  document.getElementById('addStoryBtn').addEventListener('click', ()=>document.getElementById('storyFile').click());
-  document.getElementById('sendCommentBtn').addEventListener('click', submitCommentFromModal);
 
-  document.getElementById('search').addEventListener('input', onSearchDebounced);
-  document.getElementById('search').addEventListener('keydown', (e)=>{ if(e.key==='Escape') hideSearchResults(); });
+  // Load suggestions
+  async function loadSuggestions(){
+    try{
+      const r = await fetch(API + "/users");
+      if(!r.ok) { el("suggestionList").innerHTML = "<div class='muted'>Could not load</div>"; return; }
+      const users = await r.json();
+      el("suggestionList").innerHTML = users.filter(u => String(u.id) !== String(me?.id)).map(u => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f3f3">
+          <div style="display:flex;gap:10px;align-items:center;cursor:pointer" onclick="goToProfileId('${esc(u.id)}')">
+            <img src="${esc(u.avatar || DEFAULT_AV)}" style="width:45px;height:45px;border-radius:10px;object-fit:cover">
+            <div><div style="font-weight:700">${esc(u.name)}</div><div class="muted small">${esc(u.email)}</div></div>
+          </div>
+          <div><button class="btn follow-btn" onclick="toggleFollow('${esc(u.id)}', this)">Follow</button></div>
+        </div>
+      `).join("");
+    }catch(e){ console.warn("suggestions error", e); el("suggestionList").innerHTML = "<div class='muted'>Error</div>"; }
+  }
 
-  loadFeed();
-  loadSuggestions();
-  loadStories();
-});
+  // Load feed using the server's /allposts endpoint (server uses exactly this)
+  async function loadFeed(){
+    el("feedList").classList.add("empty-placeholder");
+    el("feedList").innerText = "Loading posts...";
+    try{
+      const r = await fetch(API + "/allposts");
+      if(!r.ok){ el("feedList").classList.remove("empty-placeholder"); el("feedList").innerHTML = "<div class='muted'>Could not load posts (status " + r.status + ")</div>"; return; }
+      const posts = await r.json();
+      if(!Array.isArray(posts) || posts.length === 0){ el("feedList").classList.remove("empty-placeholder"); el("feedList").innerHTML = "<div class='muted'>No posts available.</div>"; return; }
+      // sort newest first (server already orders but just in case)
+      posts.sort((a,b)=> new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
+      el("feedList").classList.remove("empty-placeholder");
+      el("feedList").innerHTML = posts.map(p => renderPost(p)).join("");
+      // after render update like button state if needed (server keeps likes counts)
+      refreshLikeButtons();
+    }catch(err){
+      console.error("loadFeed", err);
+      el("feedList").classList.remove("empty-placeholder");
+      el("feedList").innerHTML = "<div class='muted'>Network error while loading posts.</div>";
+    }
+  }
 
-/* SEARCH */
-let searchTimer = null;
-function onSearchDebounced(){ clearTimeout(searchTimer); searchTimer = setTimeout(onSearch, 240); }
-async function onSearch(){
-  const q = (document.getElementById('search').value || '').trim();
-  const container = document.getElementById('searchResults');
-  if(!q){ hideSearchResults(); return; }
-  container.classList.remove('hidden');
-  container.innerHTML = '<div class="small muted" style="padding:8px">Searching…</div>';
+  function renderPost(p){
+    const authorId = String(p.user_id ?? p.userId ?? "");
+    const postId = p.id ?? p.post_id ?? "";
+    const image = p.image_url ?? "";
+    const created = p.created_at ?? p.createdAt ?? "";
+    return `
+      <div class="post-card" data-post-id="${esc(postId)}" data-author-id="${esc(authorId)}">
+        <div class="meta">
+          <img src="${esc(p.avatar || DEFAULT_AV)}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;cursor:pointer" onclick="goToProfileId('${esc(authorId)}')">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div>
+                <div onclick="goToProfileId('${esc(authorId)}')" style="font-weight:700;cursor:pointer">${esc(p.name || p.username || 'Unknown')}</div>
+                <div class="small">${new Date(created).toLocaleString()}</div>
+              </div>
+              <div style="text-align:right">
+                ${authorId === me?.id ? `<button class="btn" style="background:#fff;border:1px solid #f1f1f1;color:#b00" onclick="deletePost('${esc(postId)}')">Delete</button>` : `<button class="btn follow-btn" onclick="toggleFollow('${esc(authorId)}', this)">Follow</button>`}
+              </div>
+            </div>
+            <div style="margin-top:10px">${esc(p.content || '')}</div>
+            ${image ? `<img class="post-image" src="${esc(image)}">` : ''}
+            <div class="post-actions">
+              <button class="btn like-btn" onclick="toggleLike('${esc(postId)}', this)">♡ Like</button>
+              <button class="btn" onclick="openCommentPrompt('${esc(postId)}')">💬 Comment</button>
+              <button class="btn" onclick="sharePost('${esc(postId)}')">🔗 Share</button>
+            </div>
+            <div class="small muted" id="meta-${esc(postId)}">${(p.likes || 0)} likes · ${(p.comments || 0)} comments</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
-  try{
-    // If query starts with #, search tags in posts
-    if(q.startsWith('#')){
-      const tag = q.slice(1).toLowerCase();
-      const r = await fetch(API + '/allposts'); if(!r.ok) throw 0;
-      const all = await r.json();
-      const posts = Array.isArray(all)? all : (all.posts || all.data || []);
-      const matches = (posts||[]).filter(p => (p.tags||[]).map(t=>t.toLowerCase()).includes(tag)).slice(0,20);
-      if(matches.length===0){ container.innerHTML = '<div class="small muted" style="padding:8px">No posts for that tag</div>'; return; }
-      container.innerHTML = matches.map(p => {
-        const authorId = extractAuthorId(p) || '';
-        const text = (p.content || p.caption || p.text || '').slice(0,120);
-        return `<div class="search-item" onclick="hideSearchResults(); goToProfileId('${esc(authorId)}')"><strong>#${esc(tag)}</strong> — ${esc(text)}</div>`;
-      }).join('');
+  /// replace existing createPost() with this function
+async function createPost(){
+  if(!me || !me.id){ alert("Please log in to post."); return; }
+
+  const content = document.getElementById("postText").value.trim();
+  const file = document.getElementById("postFile").files[0];
+
+  if(!content && !file){
+    alert("Write something or choose an image to post.");
+    return;
+  }
+
+  try {
+    // 1) If there's a file, upload it first to /upload (field name "image")
+    let image_url = null;
+    if(file){
+      const fd = new FormData();
+      fd.append("image", file);
+      // including user_id is harmless; server only uses image for upload
+      if(me && me.id) fd.append("user_id", me.id);
+
+      const upResp = await fetch(API + "/upload", { method: "POST", body: fd });
+      // try to parse JSON body (server returns JSON with url/path)
+      const upJson = await upResp.json().catch(()=>null);
+      if(!upResp.ok){
+        const errMsg = upJson && (upJson.message || JSON.stringify(upJson)) ? (upJson.message || JSON.stringify(upJson)) : ("Upload failed (status " + upResp.status + ")");
+        alert("Image upload failed: " + errMsg);
+        console.error("upload error:", upResp.status, upJson);
+        return;
+      }
+      // common server fields: url, path, filename
+      image_url = upJson && (upJson.url || upJson.path || upJson.filename) ? (upJson.url || upJson.path || upJson.filename) : null;
+      if(!image_url){
+        // sometimes server wraps under data: { url: ... }
+        image_url = upJson && upJson.data && (upJson.data.url || upJson.data.path) ? (upJson.data.url || upJson.data.path) : null;
+      }
+    }
+
+    // 2) Call /addpost with JSON { user_id, content, image_url }
+    const payload = { user_id: me.id, content: content || "", image_url: image_url };
+    const addResp = await fetch(API + "/addpost", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const addJson = await addResp.json().catch(()=>null);
+    if(!addResp.ok){
+      const msg = addJson && (addJson.message || JSON.stringify(addJson)) ? (addJson.message || JSON.stringify(addJson)) : ("Add post failed (status " + addResp.status + ")");
+      alert("Create post failed: " + msg);
+      console.error("addpost error:", addResp.status, addJson);
       return;
     }
 
-    // Otherwise search users (first) and also search tags from posts
-    let users = [];
+    // Success: clear inputs and reload feed
+    document.getElementById("postText").value = "";
+    document.getElementById("postFile").value = "";
+    alert("Post created successfully.");
+    await loadFeed();
+
+  } catch (err) {
+    console.error("createPost exception", err);
+    alert("Network error creating post: " + (err && err.message ? err.message : String(err)));
+  }
+}
+
+
+  // ------------- Delete post -------------
+  async function deletePost(postId){
+    if(!confirm('Delete this post?')) return;
     try{
-      const ru = await fetch(API + '/users'); if(ru.ok) users = await ru.json();
-    }catch(e){ users = []; }
-    users = Array.isArray(users)? users : (users.data || users.users || []);
-
-    const userMatches = (users||[]).filter(u => (u.name||u.email||'').toLowerCase().includes(q.toLowerCase())).slice(0,8);
-
-    // tags: fetch posts, collect tag counts
-    const rp = await fetch(API + '/allposts'); let posts = [];
-    if(rp.ok){ const j = await rp.json(); posts = Array.isArray(j)? j : (j.posts||j.data||[]); }
-    const tagFreq = {};
-    (posts||[]).forEach(p => (p.tags||[]).forEach(t => {
-      const t0 = String(t||'').toLowerCase(); if(!t0) return; if(t0.includes(q.toLowerCase())) tagFreq[t0] = (tagFreq[t0]||0)+1;
-    }));
-    const tagMatches = Object.entries(tagFreq).sort((a,b)=>b[1]-a[1]).slice(0,6).map(e=>e[0]);
-
-    let html = '';
-    if(userMatches.length){
-      html += '<div style="font-weight:700;padding:6px 8px">People</div>';
-      html += userMatches.map(u => `<div class="search-item" onclick="hideSearchResults(); goToProfileId('${esc(u.id)}')"><img src="${esc(u.avatar||DEFAULT_AV)}" style="width:28px;height:28px;border-radius:6px;vertical-align:middle;margin-right:8px">${esc(u.name||u.email)}</div>`).join('');
-    }
-    if(tagMatches.length){
-      html += '<div style="font-weight:700;padding:6px 8px">Tags</div>';
-      html += tagMatches.map(t => `<div class="search-item" onclick="hideSearchResults(); document.getElementById('search').value='#${esc(t)}'; onSearch();">#${esc(t)}</div>`).join('');
-    }
-    if(!html) html = '<div class="small muted" style="padding:8px">No results</div>';
-    container.innerHTML = html;
-  }catch(e){
-    console.warn('search error', e);
-    document.getElementById('searchResults').innerHTML = '<div class="small muted" style="padding:8px">Search failed</div>';
+      const r = await fetch(API + '/deletepost/' + encodeURIComponent(postId), { method:'DELETE' });
+      if(!r.ok){
+        const txt = await r.text().catch(()=>null);
+        return alert('Delete failed: ' + (txt || r.status));
+      }
+      await loadFeed();
+    }catch(e){ console.error(e); alert('Network error deleting post'); }
   }
-}
-function hideSearchResults(){ const c = document.getElementById('searchResults'); c.classList.add('hidden'); c.innerHTML=''; }
 
-/* LOAD FEED */
-async function loadFeed(){
-  const container = document.getElementById('feedList');
-  container.innerHTML = '<div class="card muted">Loading posts…</div>';
-  try{
-    const resp = await fetch(API + '/allposts', { cache:'no-store' });
-    if(!resp.ok) throw new Error('no posts');
-    const data = await resp.json();
-    const posts = Array.isArray(data) ? data : (data.posts || data.data || []);
-    if(!posts || posts.length === 0){ container.innerHTML = '<div class="card muted">No posts yet — share something!</div>'; return; }
-
-    posts.sort((a,b) => new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
-    container.innerHTML = '';
-    posts.forEach(p => container.insertAdjacentHTML('beforeend', renderPost(p)));
-  }catch(err){
-    console.warn('loadFeed error', err);
-    container.innerHTML = '<div class="card muted">Could not load posts</div>';
+  // ------------- Like (server route /like toggles like/unlike) -------------
+  async function toggleLike(postId, btn){
+    if(!me || !me.id) return alert('Log in to like posts');
+    try{
+      const res = await fetch(API + '/like', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ post_id: postId, user_id: me.id }) });
+      const j = await res.json().catch(()=>null);
+      if(!res.ok){ return alert('Like failed: ' + (j && j.message ? j.message : res.status)); }
+      // refresh counts by reloading feed (fast)
+      await loadFeed();
+    }catch(e){ console.error(e); alert('Network error liking post'); }
   }
-}
 
-/* RENDER POST (includes delete button for owner) */
-function renderPost(p){
-  const postId = p.id || p.post_id || p._id || 0;
-  const authorId = extractAuthorId(p) || '';
-  const name = p.name || (p.user && (p.user.name || p.user.username)) || (p.author && (p.author.name || p.author.username)) || p.username || 'Unknown';
-  const avatar = p.avatar || (p.user && (p.user.avatar || p.user.image)) || (p.author && (p.author.avatar || p.author.image)) || DEFAULT_AV;
-  const created = p.created_at || p.createdAt || '';
-  const content = p.content || p.text || p.caption || '';
-  const img = p.image_url || p.image || p.photo_url || '';
-  const likes = p.likes || p.like_count || 0;
-  const commentsCount = p.comments || p.comment_count || 0;
-
-  let liked = false;
-  try{ liked = !!localStorage.getItem(`liked_${me?me.id:'anon'}_${postId}`); }catch(e){ liked = false; }
-
-  const tags = (p.tags||[]).slice(0,3).map(t => '#'+esc(t)).join(' ');
-
-  // owner check: if me.id matches post author or nested user.id
-  let owner = false;
-  try{
-    if(me && authorId) owner = String(me.id) === String(authorId);
-    // also check nested user object id
-    if(!owner && p.user && (p.user.id || p.user._id)) owner = String(me && me.id) === String(p.user.id || p.user._id);
-  }catch(e){ owner=false; }
-
-  return `
-  <div id="post-${postId}" class="card" style="position:relative" data-authorid="${esc(authorId)}" data-postid="${esc(postId)}">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <div style="display:flex;gap:12px;align-items:center">
-        <img class="avatar-sm clickable" src="${esc(avatar)}" onerror="this.src='${DEFAULT_AV}'" onclick="goToProfileId('${esc(authorId)}')">
-        <div>
-          <div class="link" style="font-weight:800;cursor:pointer" onclick="goToProfileId('${esc(authorId)}')">${esc(name)}</div>
-          <div class="muted small">${esc(new Date(created).toLocaleString())}</div>
-        </div>
-      </div>
-
-      <div class="post-actions">
-        ${ owner ? `<button class="delete-btn" onclick="deletePost('${esc(postId)}', this)">🗑 Delete</button>` : '' }
-      </div>
-    </div>
-
-    <div style="margin-top:12px">${esc(content)}</div>
-    ${ img ? `<img src="${esc(img)}" class="post-image" onerror="this.style.display='none'">` : '' }
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
-      <div>
-        <button id="like-btn-${postId}" class="heart ${liked ? 'liked' : ''}" onclick="toggleLike('${postId}', this)">${liked ? '♥' : '♡'} <span id="likes-${postId}">${likes}</span></button>
-        <button class="btn ghost" onclick="openComments('${postId}')">💬 <span id="comments-${postId}">${commentsCount}</span></button>
-      </div>
-      <div class="muted small" id="tags-${postId}">${tags}</div>
-    </div>
-  </div>
-  `;
-}
-
-/* DELETE POST (owner only) */
-async function deletePost(postId, btnEl){
-  if(!me) return alert('Please log in to delete posts');
-  if(!confirm('Delete this post?')) return;
-  // optimistic removal
-  const node = document.getElementById('post-' + postId);
-  if(node) node.remove();
-
-  // Try multiple delete endpoints (best-effort) without changing backend
-  try{
-    // try DELETE /deletepost/:id
-    let r = await fetch(API + '/deletepost/' + encodeURIComponent(postId), { method: 'DELETE' });
-    if(r.ok) return;
-    // try DELETE /post/:id
-    r = await fetch(API + '/post/' + encodeURIComponent(postId), { method: 'DELETE' });
-    if(r.ok) return;
-    // try POST /deletepost with body
-    r = await fetch(API + '/deletepost', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: postId, user_id: me.id }) });
-    if(r.ok) return;
-    console.warn('delete endpoints returned non-ok status');
-  }catch(e){
-    console.warn('delete failed', e);
+  // ------------- Comments (prompt for simple inline comment) -------------
+  async function openCommentPrompt(postId){
+    if(!me || !me.id) return alert('Log in to comment');
+    const text = prompt('Write a comment:');
+    if(!text) return;
+    try{
+      const res = await fetch(API + '/comment', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ post_id: postId, user_id: me.id, content: text }) });
+      const j = await res.json().catch(()=>null);
+      if(!res.ok) return alert('Comment failed: ' + (j && j.message ? j.message : res.status));
+      await loadFeed();
+    }catch(e){ console.error(e); alert('Network error posting comment'); }
   }
-}
 
-/* LIKE TOGGLE */
-async function toggleLike(postId, btnEl){
-  if(!me) return alert('Log in to like posts');
-  const key = `liked_${me.id}_${postId}`;
-  const isLiked = !!localStorage.getItem(key);
-  const likesEl = document.getElementById('likes-' + postId);
-  const cur = Number(likesEl ? likesEl.innerText : 0);
-
-  if(isLiked){
-    if(likesEl) likesEl.innerText = Math.max(0, cur - 1);
-    btnEl.classList.remove('liked');
-    btnEl.innerHTML = `♡ <span id="likes-${postId}">${likesEl?likesEl.innerText:0}</span>`;
-    localStorage.removeItem(key);
-    try{ await fetch(API + '/unlike', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ post_id: postId, user_id: me.id }) }); }catch(e){ console.warn('unlike failed', e); }
-  } else {
-    if(likesEl) likesEl.innerText = cur + 1;
-    btnEl.classList.add('liked');
-    btnEl.innerHTML = `♥ <span id="likes-${postId}">${likesEl?likesEl.innerText:cur+1}</span>`;
-    localStorage.setItem(key, '1');
-    try{ await fetch(API + '/like', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ post_id: postId, user_id: me.id }) }); }catch(e){ console.warn('like failed', e); }
+  // ------------- Share -------------
+  function sharePost(postId){
+    const url = location.origin + "/profile.html?post=" + encodeURIComponent(postId);
+    if(navigator.clipboard) navigator.clipboard.writeText(url).then(()=> alert('Link copied to clipboard'), ()=> alert('Could not copy — link: ' + url));
+    else alert('Link: ' + url);
   }
-}
 
-/* COMMENTS */
-let currentCommentPost = null;
-function openComments(postId){
-  currentCommentPost = postId;
-  document.getElementById('commentsModal').classList.remove('hidden');
-  loadComments(postId);
-}
-function closeComments(){ document.getElementById('commentsModal').classList.add('hidden'); document.getElementById('commentsList').innerHTML=''; document.getElementById('commentInput').value=''; }
+  // ------------- Follow (optimistic local + server attempt) -------------
+  async function toggleFollow(targetId, btn){
+    if(!me || !me.id) return alert('Log in to follow');
+    const key = 'following_' + me.id;
+    let map = JSON.parse(localStorage.getItem(key) || '{}');
+    const isFollowing = !!map[targetId];
+    if(isFollowing){ delete map[targetId]; btn.classList.remove('following'); btn.innerText = 'Follow'; }
+    else { map[targetId] = true; btn.classList.add('following'); btn.innerText = 'Following'; }
+    localStorage.setItem(key, JSON.stringify(map));
+    try{
+      const url = isFollowing ? API + '/unfollow' : API + '/follow';
+      await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ follower_id: me.id, followee_id: targetId }) });
+    }catch(e){ console.warn('follow api failed', e); }
+  }
 
-async function loadComments(postId){
-  const listEl = document.getElementById('commentsList');
-  listEl.innerHTML = 'Loading comments...';
-  try{
-    const r = await fetch(API + '/comments/' + encodeURIComponent(postId));
-    if(!r.ok) { listEl.innerHTML = '<div class="muted small">No comments</div>'; return; }
-    const data = await r.json();
-    const comments = Array.isArray(data) ? data : (data.comments || data.data || []);
-    if(!comments || comments.length === 0){ listEl.innerHTML = '<div class="muted small">No comments yet</div>'; return; }
-    listEl.innerHTML = comments.map(c => `
-      <div style="display:flex;gap:12px;margin:8px 0">
-        <img src="${esc(c.avatar||DEFAULT_AV)}" style="width:44px;height:44px;border-radius:10px;object-fit:cover">
-        <div>
-          <div style="font-weight:700">${esc(c.name || c.user_name || 'Someone')} <span class="muted small">${esc(new Date(c.created_at||c.createdAt||Date.now()).toLocaleString())}</span></div>
-          <div>${esc(c.content || c.comment || c.text || '')}</div>
-        </div>
-      </div>
-    `).join('');
-  }catch(e){ console.warn(e); listEl.innerHTML = '<div class="muted small">Comments not available</div>'; }
-}
+  // ------------- Search ----------
+  el("searchInput").addEventListener("keydown", async (ev)=> {
+    if(ev.key !== 'Enter') return;
+    const q = el("searchInput").value.trim().toLowerCase();
+    if(!q) return;
+    try{
+      const r = await fetch(API + '/users');
+      if(!r.ok) return alert('Search failed');
+      const arr = await r.json();
+      const found = arr.find(u => (u.name || '').toLowerCase().includes(q) || String(u.id) === q);
+      if(found) goToProfileId(found.id);
+      else alert('No user matched');
+    }catch(e){ console.error('search error', e); alert('Search failed'); }
+  });
 
-/* SUBMIT COMMENT */
-async function submitCommentFromModal(){
-  if(!me) return alert('Please log in to comment');
-  const txt = document.getElementById('commentInput').value.trim();
-  if(!txt) return alert('Write a comment');
-  const postId = currentCommentPost;
-  if(!postId) return;
+  // ------------- Helpers -------------
+  function refreshLikeButtons(){ /* noop here — like reload updates meta; kept for extension */ }
 
-  const listEl = document.getElementById('commentsList');
-  const now = new Date().toLocaleString();
-  listEl.innerHTML += `<div style="display:flex;gap:12px;margin:8px 0"><img src="${esc(me.avatar||DEFAULT_AV)}" style="width:44px;height:44px;border-radius:10px;object-fit:cover"><div><div style="font-weight:700">${esc(me.name)} <span class="muted small">${esc(now)}</span></div><div>${esc(txt)}</div></div></div>`;
-
-  const countEl = document.getElementById('comments-' + postId);
-  if(countEl) countEl.innerText = Number(countEl.innerText || 0) + 1;
-  document.getElementById('commentInput').value = '';
-
-  try{ await fetch(API + '/comment', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ post_id: postId, user_id: me.id, content: txt }) }); }catch(e){ console.warn('comment send failed', e); }
-}
-
-/* CREATE POST */
-async function createPost(){
-  if(!me) return alert('Please log in to post');
-  const content = document.getElementById('composer').value.trim();
-  const file = document.getElementById('postImage').files[0];
-  if(!content && !file) return alert('Write something or attach an image');
-
-  try{
-    let image_url = null;
-    if(file){
-      const fd = new FormData(); fd.append('image', file); fd.append('user_id', me.id);
-      const up = await fetch(API + '/upload', { method:'POST', body: fd });
-      const uj = await up.json();
-      image_url = uj.url || uj.path || uj.filename || null;
-    }
-
-    const res = await fetch(API + '/addpost', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_id: me.id, content, image_url }) });
-    if(res.ok){ document.getElementById('composer').value = ''; document.getElementById('postImage').value = ''; loadFeed(); }
-    else alert('Could not create post');
-  }catch(e){ console.warn('createPost', e); alert('Post failed'); }
-}
-
-/* STORIES */
-async function loadStories(){
-  const wrap = document.getElementById('stories'); wrap.innerHTML = '';
-  try{
-    const r = await fetch(API + '/stories'); if(!r.ok) return;
-    const j = await r.json();
-    const items = Array.isArray(j) ? j : (j.data || j.stories || []);
-    items.forEach(s => {
-      const div = document.createElement('div'); div.className = 'story-item';
-      const img = document.createElement('img'); img.src = s.image_url || s.image || s.url || DEFAULT_AV; img.onclick = ()=> window.open(img.src,'_blank');
-      div.appendChild(img); wrap.appendChild(div);
-    });
-  }catch(e){ /* ignore */ }
-}
-async function uploadStory(ev){ if(!me) return alert('Log in to add a story'); const file = ev.target.files[0]; if(!file) return; const fd = new FormData(); fd.append('image', file); fd.append('user_id', me.id); try{ const r = await fetch(API + '/uploadstory', { method:'POST', body: fd }); if(!r.ok) throw new Error('upload failed'); const j = await r.json(); if(j.url){ const wrap = document.getElementById('stories'); const node = document.createElement('div'); node.className = 'story-item'; node.innerHTML = `<img src="${j.url}" onclick="window.open('${j.url}','_blank')">`; wrap.prepend(node); } alert('Story uploaded'); }catch(e){ console.warn('uploadStory failed', e); alert('Story upload failed'); } }
-
-/* SUGGESTIONS + FOLLOW */
-async function loadSuggestions(){
-  const holder = document.getElementById('suggestions'); holder.innerHTML = 'Loading…';
-  try{
-    const r = await fetch(API + '/users'); if(!r.ok){ holder.innerHTML = '<div class="muted">Cannot load suggestions</div>'; return; }
-    const users = await r.json(); const arr = Array.isArray(users)?users:(users.data||users.users||[]);
-    const meId = me ? String(me.id) : null;
-    const suggestions = (arr||[]).filter(u => String(u.id) !== meId).slice(0,6);
-    const followMap = JSON.parse(localStorage.getItem('following_' + (me?me.id:'anon')) || '{}');
-
-    holder.innerHTML = suggestions.map(u => {
-      const isFollowing = !!followMap[String(u.id)];
-      return `<div class="suggestion-row" data-id="${u.id}">
-        <img src="${u.avatar || DEFAULT_AV}" style="width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer" onclick="goToProfileId('${u.id}')">
-        <div style="flex:1">
-          <div style="font-weight:700;cursor:pointer" onclick="goToProfileId('${u.id}')">${esc(u.name||u.username||u.email)}</div>
-          <div class="muted small">${esc(u.email||'')}</div>
-        </div>
-        <button class="follow-btn ${isFollowing?'following':''}" onclick="toggleFollow('${u.id}', this)">${isFollowing ? 'Following' : 'Follow'}</button>
-      </div>`;
-    }).join('');
-  }catch(e){ console.warn('loadSuggestions failed', e); holder.innerHTML = '<div class="muted">Suggestions not available</div>'; }
-}
-async function toggleFollow(otherId, btnEl){ if(!me) return alert('Please log in to follow users'); const followKey = 'following_' + me.id; const map = JSON.parse(localStorage.getItem(followKey) || '{}'); const isFollowing = !!map[String(otherId)]; if(isFollowing){ btnEl.classList.remove('following'); btnEl.innerText = 'Follow'; delete map[String(otherId)]; localStorage.setItem(followKey, JSON.stringify(map)); try{ await fetch(API + '/unfollow', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_id: me.id, target_id: otherId }) }); }catch(e){ console.warn('unfollow failed', e); } } else { btnEl.classList.add('following'); btnEl.innerText = 'Following'; map[String(otherId)] = true; localStorage.setItem(followKey, JSON.stringify(map)); try{ await fetch(API + '/follow', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_id: me.id, target_id: otherId }) }); }catch(e){ console.warn('follow failed', e); } } }
-
-/* hide search when clicking outside */
-document.addEventListener('click', (e) => {
-  const sr = document.getElementById('searchResults');
-  if(!sr) return;
-  const inside = e.composedPath && e.composedPath().some(n => n === sr || n === document.getElementById('search'));
-  if(!inside) hideSearchResults();
-});
-
+  // boot
+  loadFeed();
+  loadSuggestions();
 </script>
-
 </body>
 </html>

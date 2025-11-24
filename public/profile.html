@@ -1,228 +1,313 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Profile • InstaLite</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
   <style>
-    header{padding:14px 22px;background:linear-gradient(90deg,#00b4ff,#7a3cff);color:#fff;display:flex;align-items:center;justify-content:space-between}
-    .container{max-width:980px;margin:22px auto;padding:8px}
-    .card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 10px 40px rgba(10,10,10,0.06);margin-bottom:18px}
-    .avatar-lg{width:120px;height:120px;border-radius:14px;object-fit:cover}
-    .muted{color:#666}
-    .follow-btn{padding:8px 12px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);cursor:pointer}
-    .follow-btn.following{background:#111;color:#fff;border-color:transparent}
-    .small{font-size:12px}
-    .post-card { margin-bottom:12px; padding:12px; border-radius:8px; border:1px solid rgba(0,0,0,0.04); }
-    .delete-btn{background:transparent;border:0;color:#b00;cursor:pointer}
+    body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto;margin:0;background:linear-gradient(180deg,#fbfbfd,#f6f2fb)}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff}
+    .wrap{width:92%;margin:24px auto;display:flex;gap:20px}
+    .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(20,20,40,0.06)}
+    .left{width:32%}.right{width:68%}
+    .pv{display:flex;gap:16px;align-items:center}
+    .pv img{width:120px;height:120px;border-radius:12px;object-fit:cover}
+    .muted{color:#7b7b7b}
+    .counts{display:flex;gap:22px;margin-top:8px}
+    .counts div{cursor:pointer}
+    .post-card{margin-top:14px;padding:12px;border-radius:10px}
+    .modal-back{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center;z-index:999}
+    .modal{background:#fff;border-radius:10px;padding:12px;width:420px;max-height:80vh;overflow:auto}
+    .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    .follow-btn{background:#f0f0f0}
+    .follow-btn.following{background:#111;color:#fff}
+    .small{font-size:12px;color:#7b7b7b}
   </style>
 </head>
 <body>
-  <header>
-    <div style="display:flex;gap:12px;align-items:center">
-      <div style="width:44px;height:44px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#7a3cff;font-weight:800">IL</div>
-      <div style="font-weight:800">InstaLite</div>
+
+  <div class="topbar">
+    <div style="font-weight:700">InstaLite</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn" onclick="location.href='feed.html'">Feed</button>
+      <button class="btn" onclick="location.href='users.html'">Users</button>
     </div>
-    <div><button onclick="location.href='feed.html'" style="padding:8px 12px;border-radius:8px">Feed</button></div>
-  </header>
+  </div>
 
-  <main class="container">
-    <div id="profileCard" class="card">Loading profile...</div>
-
-    <div id="postsCard" class="card">
-      <div style="font-weight:700;margin-bottom:12px">Posts</div>
-      <div id="profilePosts">Loading...</div>
-    </div>
-  </main>
-
-<script>
-const API = 'http://localhost:3000';
-const DEFAULT_AV = '/mnt/data/a2ec838d-f32b-43e1-8b47-ff7434b1674c.png';
-
-function q(name){ return new URL(location.href).searchParams.get(name); }
-function esc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-let me = null;
-try{ me = JSON.parse(localStorage.getItem('user') || 'null'); }catch(e){ me = null; }
-let viewedUser = null;
-
-function extractPostUserId(post){
-  if(!post) return null;
-  if(post.user_id) return String(post.user_id);
-  if(post.userId) return String(post.userId);
-  if(post.author_id) return String(post.author_id);
-  if(post.authorId) return String(post.authorId);
-  if(post.posted_by) return String(post.posted_by);
-  if(post.user && (post.user.id || post.user._id)) return String(post.user.id || post.user._id);
-  if(post.author && (post.author.id || post.author._id)) return String(post.author.id || post.author._id);
-  if(post.owner && (post.owner.id || post.owner._id)) return String(post.owner.id || post.owner._id);
-  if(typeof post.user === 'string') return post.user;
-  return String(post.user_id || post.user || post.author || post.id || '');
-}
-
-function renderProfileUI(user){
-  viewedUser = user;
-  const wrap = document.getElementById('profileCard');
-  const avatar = user.avatar || user.image || DEFAULT_AV;
-  const name = user.name || user.username || user.fullname || user.email || 'Unknown';
-  const email = user.email || '';
-  const followers = Number(user.followers_count || user.followers || 0);
-  const following = Number(user.following_count || user.following || 0);
-
-  wrap.innerHTML = `
-    <div style="display:flex;gap:18px;align-items:center">
-      <img id="profileAvatar" src="${esc(avatar)}" class="avatar-lg" onerror="this.src='${DEFAULT_AV}'">
-      <div style="flex:1">
-        <div style="font-weight:800;font-size:20px" id="profileName">${esc(name)}</div>
-        <div class="muted small" id="profileEmail">${esc(email)}</div>
-        <div style="display:flex;gap:20px;margin-top:12px">
-          <div><strong id="followersCount">${esc(followers)}</strong><div class="muted small">Followers</div></div>
-          <div><strong id="followingCount">${esc(following)}</strong><div class="muted small">Following</div></div>
-        </div>
-        <div style="margin-top:12px">
-          <button id="followBtn" class="follow-btn">Follow</button>
-          <button id="editBtn" style="margin-left:8px;padding:8px 12px;border-radius:10px">Edit profile</button>
+  <div class="wrap">
+    <div class="left card">
+      <div class="pv">
+        <img id="profileAvatar" src="">
+        <div>
+          <div id="profileName" style="font-weight:800;font-size:20px"></div>
+          <div id="profileEmail" class="muted"></div>
+          <div class="counts" style="margin-top:10px">
+            <div id="followersCount"><strong id="followersNum">0</strong><div class="small">Followers</div></div>
+            <div id="followingCount"><strong id="followingNum">0</strong><div class="small">Following</div></div>
+          </div>
+          <div style="margin-top:14px">
+            <button id="followBtn" class="btn follow-btn">Follow</button>
+            <button id="editBtn" class="btn" style="display:none;background:#06b6d4;color:#fff" onclick="editProfile()">Edit profile</button>
+          </div>
         </div>
       </div>
+
+      <div style="margin-top:18px" id="profileBio">Profile loaded</div>
     </div>
-    <div style="margin-top:12px;color:#666" id="profileNote">Profile loaded</div>
-    <div style="margin-top:10px" id="profileBio">${esc(user.bio||'')}</div>
-  `;
 
-  const editBtn = document.getElementById('editBtn');
-  const followBtn = document.getElementById('followBtn');
+    <div class="right card">
+      <div style="font-weight:700">Posts</div>
+      <div id="postsArea"></div>
+    </div>
+  </div>
 
-  if(me && String(me.id) === String(user.id)){
-    followBtn.style.display = 'none';
-    editBtn.onclick = ()=> location.href = 'edit-profile.html?id=' + encodeURIComponent(user.id);
-  } else {
-    editBtn.style.display = 'none';
-    followBtn.style.display = 'inline-block';
-    let isFollowing = false;
-    try{ const map = JSON.parse(localStorage.getItem('following_' + (me?me.id:'anon')) || '{}'); isFollowing = !!map[String(user.id)]; }catch(e){}
-    setFollowButtonState(followBtn, isFollowing);
-    followBtn.onclick = ()=> toggleFollow(user.id, followBtn);
-  }
-}
+  <div id="modalBackdrop" class="modal-back">
+    <div class="modal" id="listModal">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong id="modalTitle">Title</strong>
+        <button onclick="closeModal()">Close</button>
+      </div>
+      <div id="modalList" style="margin-top:10px"></div>
+    </div>
+  </div>
 
-function setFollowButtonState(btn, following){
-  if(following){ btn.classList.add('following'); btn.innerText = 'Following'; }
-  else { btn.classList.remove('following'); btn.innerText = 'Follow'; }
-}
+<script>
+  const API = "http://localhost:3000";
+  const DEFAULT_AV = "https://i.ibb.co/Sx0hJ9V/default-avatar.png";
 
-async function loadProfile(){
-  const id = q('id');
-  const wrap = document.getElementById('profileCard');
-  const postsHolder = document.getElementById('profilePosts');
-  if(!id){ wrap.innerText = 'Profile id missing in URL.'; postsHolder.innerText=''; return; }
+  let me = JSON.parse(localStorage.getItem("user") || "null");
+  if(me && me.id) me.id = String(me.id);
 
-  try{
-    const local = JSON.parse(localStorage.getItem('user') || 'null');
-    if(local && String(local.id) === String(id)){
-      renderProfileUI(local);
-    }
-  }catch(e){}
+  function q(name){ return new URLSearchParams(location.search).get(name); }
+  function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-  const tries = [
-    API + '/users/' + id,
-    API + '/user/' + id,
-    API + '/users?id=' + id,
-    API + '/profile?id=' + id,
-    API + '/getUser?id=' + id
-  ];
+  let viewedUser = null;
 
-  let user = null;
-  for(const url of tries){
+  async function initProfile(){
+    const id = q("id");
+    if(!id){ alert("Missing profile id"); location.href = "feed.html"; return; }
+
+    // fetch users list and pick the matching id (server provides /users)
     try{
-      const res = await fetch(url, { cache:'no-store' });
-      if(!res.ok) continue;
-      const j = await res.json();
-      if(Array.isArray(j) && j.length) user = j[0];
-      else if(j.user) user = j.user;
-      else if(j.data && (Array.isArray(j.data)? j.data[0] : true)) user = Array.isArray(j.data)? j.data[0] : j.data;
-      else if(j.profile) user = j.profile;
-      else user = j;
-      if(user && (user.id || user.email || user.name)) break;
-      user = null;
-    }catch(e){ continue; }
-  }
-
-  if(!user){
-    const local = JSON.parse(localStorage.getItem('user') || 'null');
-    if(local && String(local.id) === String(id)){
-      renderProfileUI(local);
-      loadPosts(id); return;
-    }
-    wrap.innerHTML = '<div style="color:#b00">Could not load profile from server. Showing offline fallback if available.</div>';
-    postsHolder.innerText = ''; return;
-  }
-
-  renderProfileUI(user);
-  loadPosts(user.id || id);
-}
-
-async function loadPosts(userId){
-  const holder = document.getElementById('profilePosts'); holder.innerHTML = 'Loading posts...';
-  const tries = [ API + '/posts?user_id=' + userId, API + '/posts/user/' + userId, API + '/userposts?id=' + userId, API + '/allposts' ];
-  for(const url of tries){
-    try{
-      const res = await fetch(url, { cache:'no-store' });
-      if(!res.ok) continue;
-      const j = await res.json();
-      let posts = Array.isArray(j) ? j : (j.posts || j.data || []);
-      // If endpoint returned all posts, filter using extractPostUserId
-      if(url.endsWith('/allposts')){
-        posts = (Array.isArray(posts)?posts:[]).filter(p => extractPostUserId(p) === String(userId));
-      } else {
-        // also allow nested user objects: filter defensively
-        posts = (Array.isArray(posts)?posts:[]).filter(p => {
-          const pid = extractPostUserId(p);
-          return String(pid) === String(userId);
-        });
+      const r = await fetch(API + "/users");
+      if(!r.ok) throw new Error("Could not load users list");
+      const users = await r.json();
+      const found = users.find(u => String(u.id) === String(id));
+      if(!found){
+        // if user is viewing her own profile but not in server list, fallback
+        if(String(me?.id) === String(id)){ viewedUser = me; renderProfile(); loadPosts(id); return; }
+        throw new Error("User not found");
       }
-
-      if(!Array.isArray(posts)) posts = [];
-      if(posts.length === 0){ holder.innerHTML = '<div class="muted">No posts yet</div>'; return; }
-      holder.innerHTML = '';
-      posts.sort((a,b)=> new Date(b.created_at||b.createdAt||0) - new Date(a.created_at||a.createdAt||0));
-      posts.forEach(p => {
-        const div = document.createElement('div'); div.className = 'post-card';
-        const created = esc(new Date(p.created_at || p.createdAt || Date.now()).toLocaleString());
-        const text = esc(p.content || p.text || '');
-        const imgHtml = p.image_url ? `<div style="margin-top:8px"><img src="${esc(p.image_url)}" style="max-width:100%;border-radius:10px"></div>` : '';
-        // show delete button if owner
-        const authorId = extractPostUserId(p);
-        const owner = me && String(me.id) === String(authorId);
-        div.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700">${text}</div>${owner ? `<button class="delete-btn" onclick="profileDeletePost('${esc(p.id||p.post_id||p._id)}', this)">🗑 Delete</button>` : ''}</div><div class="muted small">${created}</div>${imgHtml}`;
-        holder.appendChild(div);
-      });
-      return;
-    }catch(e){ console.warn('loadPosts try failed for', url, e); continue; }
+      viewedUser = found;
+      renderProfile();
+      await loadPosts(viewedUser.id);
+      await loadFollowCounts(viewedUser.id);
+    }catch(e){
+      console.error("initProfile", e);
+      document.getElementById("postsArea").innerHTML = "<div class='muted'>Could not load profile.</div>";
+    }
   }
-  holder.innerHTML = '<div class="muted">Could not load posts</div>';
+
+  function renderProfile(){
+    el("profileAvatar").src = viewedUser.avatar || DEFAULT_AV;
+    el("profileName").innerText = viewedUser.name || viewedUser.email || "User";
+    el("profileEmail").innerText = viewedUser.email || "";
+    el("profileBio").innerText = viewedUser.bio || "";
+
+    if(String(me?.id) === String(viewedUser.id)){
+      el("editBtn").style.display = "inline-block";
+      el("followBtn").style.display = "none";
+    } else {
+      el("editBtn").style.display = "none";
+      el("followBtn").style.display = "inline-block";
+      setupFollowBtn();
+    }
+  }
+
+  // helper
+  function el(id){ return document.getElementById(id); }
+
+  async function loadPosts(userId){
+    const target = el("postsArea");
+    target.innerHTML = "<div class='muted'>Loading posts...</div>";
+    // try the same endpoints as feed uses (safe)
+    const candidates = ["/allposts","/posts","/getposts","/posts/all"];
+    let posts = [];
+    for(const ep of candidates){
+      try{
+        const r = await fetch(API + ep + "?user=" + encodeURIComponent(userId));
+        // if server supports filtering by query param, good; otherwise we'll try next
+        if(r.ok){
+          const data = await r.json();
+          // if server returns all posts, filter client-side
+          if(Array.isArray(data)) {
+            // filter posts whose author matches userId
+            posts = data.filter(p => String(p.user_id ?? p.userId ?? p.user ?? p.uid ?? "") === String(userId));
+            break;
+          }
+        }
+      }catch(e){}
+    }
+    // fallback: try /userposts/:id if server has it
+    if(posts.length === 0){
+      try{
+        const r2 = await fetch(API + "/userposts/" + encodeURIComponent(userId));
+        if(r2.ok){ posts = await r2.json(); }
+      }catch(e){}
+    }
+
+    if(!Array.isArray(posts) || posts.length === 0){ target.innerHTML = "<div class='muted'>No posts yet.</div>"; return; }
+
+    // render
+    posts.sort((a,b)=> new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
+    target.innerHTML = posts.map(p => `
+      <div class="post-card" style="display:flex;gap:12px;align-items:flex-start">
+        <img src="${esc(p.image_url || p.image || '')}" style="width:120px;height:120px;border-radius:10px;object-fit:cover">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div><div style="font-weight:700">${esc(p.title || p.caption || '')}</div><div class="small muted">${new Date(p.createdAt || p.created_at || '').toLocaleString()}</div></div>
+            <div>${ String(p.user_id ?? p.userId ?? p.user ?? p.uid ?? "") === String(me?.id) ? `<button class="btn" style="color:#b00;background:#fff;border:1px solid #f1f1f1" onclick="deletePost('${esc(p.id)}')">Delete</button>` : '' }</div>
+          </div>
+          <div style="margin-top:10px">${esc(p.content || p.caption || '')}</div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  async function deletePost(postId){
+    if(!confirm("Delete this post?")) return;
+    try{
+      const r = await fetch(API + "/deletepost/" + encodeURIComponent(postId), { method: "DELETE" });
+      if(!r.ok){ const t = await r.text(); console.warn("Delete failed", r.status, t); alert("Server failed to delete"); return; }
+      // reload posts
+      await loadPosts(viewedUser.id);
+    }catch(e){ console.error("delete error", e); alert("Network error deleting"); }
+  }
+
+  // Followers / Following
+  async function loadFollowCounts(userId){
+    try{
+      const r1 = await fetch(API + "/followers/" + encodeURIComponent(userId));
+      const r2 = await fetch(API + "/following/" + encodeURIComponent(userId));
+      const followers = r1.ok ? await r1.json() : [];
+      const following = r2.ok ? await r2.json() : [];
+      el("followersNum").innerText = (followers && followers.length) ? followers.length : 0;
+      el("followingNum").innerText = (following && following.length) ? following.length : 0;
+
+      el("followersCount").onclick = ()=> showListModal("Followers", followers || []);
+      el("followingCount").onclick = ()=> showListModal("Following", following || []);
+    }catch(e){ console.warn("loadFollowCounts", e); }
+  }
+
+  function showListModal(title, arr){
+    el("modalTitle").innerText = title;
+    const list = el("modalList");
+    list.innerHTML = "";
+    if(!arr || arr.length === 0){ list.innerHTML = "<div class='muted'>No users</div>"; el("modalBackdrop").style.display = "flex"; return; }
+    for(const u of arr){
+      const row = document.createElement("div");
+      row.style.display = "flex"; row.style.alignItems = "center"; row.style.gap = "10px"; row.style.padding = "8px"; row.style.cursor = "pointer";
+      row.onclick = ()=> { location.href = "profile.html?id=" + encodeURIComponent(u.id); };
+      row.innerHTML = `<img src="${esc(u.avatar || DEFAULT_AV)}" style="width:46px;height:46px;border-radius:8px;object-fit:cover"><div><div style="font-weight:700">${esc(u.name)}</div><div class="muted small">${esc(u.email||'')}</div></div>`;
+      list.appendChild(row);
+    }
+    el("modalBackdrop").style.display = "flex";
+  }
+  function closeModal(){ el("modalBackdrop").style.display = "none"; }
+
+  // follow button setup (on profile)
+  function setupFollowBtn(){
+    const btn = el("followBtn");
+    const key = "following_" + me?.id;
+    const map = JSON.parse(localStorage.getItem(key) || "{}");
+    const isFollowing = !!map[String(viewedUser.id)];
+    btn.className = isFollowing ? "btn follow-btn following" : "btn follow-btn";
+    btn.innerText = isFollowing ? "Following" : "Follow";
+    btn.onclick = ()=> toggleFollow(viewedUser.id, btn);
+  }
+
+  async function toggleFollow(targetId, btn){
+    if(!me || !me.id){ alert("Login to follow"); return; }
+    const key = "following_" + me.id;
+    let map = JSON.parse(localStorage.getItem(key) || "{}");
+    const wasFollowing = !!map[targetId];
+    if(wasFollowing) { delete map[targetId]; btn.classList.remove("following"); btn.innerText = "Follow"; }
+    else { map[targetId] = true; btn.classList.add("following"); btn.innerText = "Following"; }
+    localStorage.setItem(key, JSON.stringify(map));
+    try{
+      const url = wasFollowing ? API + "/unfollow" : API + "/follow";
+      await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ follower_id: me.id, followee_id: targetId }) });
+    }catch(e){ console.warn("follow api failed", e); }
+    await loadFollowCounts(viewedUser.id);
+  }
+
+  async function createPost(){
+  if(!me || !me.id){ alert("Please log in to post."); return; }
+
+  const text = document.getElementById("postText").value.trim();
+  const file = document.getElementById("postFile").files[0];
+
+  // endpoints to try (will stop at first success)
+  const endpoints = ["/post", "/createpost", "/addpost", "/uploadpost"];
+  // build formdata (include both common field names)
+  const fd = new FormData();
+  fd.append("user_id", me.id);
+  fd.append("userId", me.id);
+  fd.append("content", text);
+  fd.append("caption", text);
+  if(file) fd.append("image", file);
+  // also try common alternate name
+  if(file) fd.append("photo", file);
+
+  // try each endpoint in order
+  for(const ep of endpoints){
+    try{
+      const url = API + ep;
+      console.log("Trying to POST to", url);
+      const res = await fetch(url, { method: "POST", body: fd });
+      const bodyText = await res.text().catch(()=>"<no-body>");
+      if(res.ok){
+        // success: clear inputs and reload feed
+        document.getElementById("postText").value = "";
+        document.getElementById("postFile").value = "";
+        // show a brief success message and reload
+        alert("Post created successfully (via " + ep + ").");
+        await loadFeed();
+        return;
+      } else {
+        // server returned non-200 — record and try next
+        console.warn("POST " + ep + " returned", res.status, bodyText);
+        // if 404 on all endpoints we'll show last response after loop
+        lastFailed = { endpoint: ep, status: res.status, text: bodyText };
+      }
+    }catch(err){
+      console.warn("Network error posting to", ep, err);
+      lastFailed = { endpoint: ep, error: String(err) };
+    }
+  }
+
+  // if reached here, none succeeded — show the server info to you
+  let msg = "Could not create post. Tried endpoints: " + endpoints.join(", ") + "\n\n";
+  if(lastFailed){
+    msg += "Last attempt: " + (lastFailed.endpoint || "(unknown)") + "\n";
+    if(lastFailed.status) msg += "Status: " + lastFailed.status + "\n";
+    if(lastFailed.text) msg += "Response body:\n" + lastFailed.text + "\n";
+    if(lastFailed.error) msg += "Error: " + lastFailed.error + "\n";
+  } else {
+    msg += "No response received.\n";
+  }
+  alert(msg);
+  console.error(msg);
 }
 
-async function profileDeletePost(postId, btnEl){
-  if(!me) return alert('Please log in to delete posts');
-  if(!confirm('Delete this post?')) return;
-  // optimistic UI remove: remove parent .post-card
-  const card = btnEl.closest('.post-card'); if(card) card.remove();
-  try{
-    let r = await fetch(API + '/deletepost/' + encodeURIComponent(postId), { method: 'DELETE' });
-    if(r.ok) return;
-    r = await fetch(API + '/deletepost', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: postId, user_id: me.id }) });
-    if(r.ok) return;
-  }catch(e){ console.warn('profile delete failed', e); }
-}
+  function editProfile(){ location.href = "edit-profile.html?id=" + encodeURIComponent(viewedUser.id); }
 
-async function toggleFollow(targetId, btnEl){ if(!me) return alert('Please log in to follow users'); const key = 'following_' + me.id; const map = JSON.parse(localStorage.getItem(key) || '{}'); const isFollowing = !!map[String(targetId)]; if(isFollowing){ delete map[String(targetId)]; localStorage.setItem(key, JSON.stringify(map)); setFollowButtonState(btnEl, false); try{ await fetch(API + '/unfollow', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_id: me.id, target_id: targetId }) }); }catch(e){ console.warn('unfollow failed', e); } } else { map[String(targetId)] = true; localStorage.setItem(key, JSON.stringify(map)); setFollowButtonState(btnEl, true); try{ await fetch(API + '/follow', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_id: me.id, target_id: targetId }) }); }catch(e){ console.warn('follow failed', e); } } }
+  // helper el
+  function el(id){ return document.getElementById(id); }
 
-window.addEventListener('storage', (e) => {
-  if(e.key === 'user' || (e.key && e.key.startsWith('following_')) || e.key === 'profile_updated_at'){ try{ me = JSON.parse(localStorage.getItem('user') || 'null'); }catch(e){} setTimeout(()=> loadProfile(), 200); }
-});
-
-loadProfile();
+  // boot
+  initProfile();
 </script>
+
 </body>
 </html>
