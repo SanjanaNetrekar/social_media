@@ -1,26 +1,21 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Edit profile • InstaLite</title>
+  <meta charset="utf-8"><title>Edit profile • InstaLite</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css">
   <style>
     body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto;margin:0;background:linear-gradient(180deg,#fbfbfd,#f6f2fb)}
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff}
     .container{width:92%;margin:22px auto;display:flex;gap:22px}
     .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(20,20,40,0.06)}
-    .left{width:32%}.right{width:68%}
-    .pv{display:flex;gap:16px;align-items:center}
     .pv img{width:120px;height:120px;border-radius:12px;object-fit:cover}
-    .form-row{margin-top:12px}
     .input{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e6e6}
     .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
-    .muted{color:#7b7b7b}
   </style>
 </head>
 <body>
 
-  <div class="topbar">
+  <div class="topbar" style="display:flex;align-items:center;justify-content:space-between;padding:18px 28px;background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff">
     <div style="font-weight:700">InstaLite</div>
     <div style="display:flex;gap:10px;align-items:center">
       <button class="btn" onclick="location.href='feed.html'">Feed</button>
@@ -58,7 +53,7 @@
 
       <div class="form-row">
         <label for="bio">Bio</label><br>
-        <textarea id="bio" class="input" rows="4" placeholder="A short bio..."></textarea>
+        <textarea id="bio" class="input" rows="4" placeholder="A short bio."></textarea>
       </div>
 
       <div class="form-row" style="margin-top:14px">
@@ -71,8 +66,7 @@
 <script>
   const API = "http://localhost:3000";
   let me = null;
-  try { me = JSON.parse(localStorage.getItem('user') || 'null'); } catch(e){ me = null; }
-  if(me && me.id) me.id = String(me.id);
+  try { me = JSON.parse(localStorage.getItem('user') || 'null'); if(me && me.id) me.id = String(me.id); } catch(e){ me = null; }
 
   const preview = document.getElementById('preview');
   const nameInput = document.getElementById('name');
@@ -100,49 +94,39 @@
   document.getElementById('uploadBtn').addEventListener('click', async ()=>{
     const file = document.getElementById('file').files[0];
     if(!file) return alert('Choose an image to upload');
-    const fd = new FormData();
-    fd.append('image', file);
-    if(me && me.id) fd.append('user_id', me.id);
+    const fd = new FormData(); fd.append('image', file); fd.append('user_id', me && me.id ? me.id : '');
     try{
-      const r = await fetch(API + '/upload', { method: 'POST', body: fd });
-      if(!r.ok){
-        const txt = await r.text().catch(()=>null);
-        alert('Upload failed: ' + (txt || r.status));
-        console.warn('upload failed', r.status, txt);
-        return;
-      }
-      const j = await r.json().catch(()=>null);
-      const url = j && (j.url || j.path || (j.data && (j.data.url || j.data.path))) ? (j.url || j.path || (j.data && (j.data.url || j.data.path))) : null;
-      if(!url){
-        alert('Upload returned no url. Check server.');
-        console.warn('upload response', j);
-        return;
-      }
-      preview.src = url;
-      if(!me) me = {};
-      me.avatar = url;
-      localStorage.setItem('user', JSON.stringify(me));
-      alert('Avatar uploaded, now click Save to persist.');
-    }catch(e){ console.error('upload exception', e); alert('Upload failed (network)'); }
+      const r = await fetch(API + '/upload', { method:'POST', body: fd });
+      if(!r.ok) throw new Error('Upload failed');
+      const j = await r.json();
+      const url = j.url || j.path || j.filename || (j.data && j.data.url) || null;
+      if(url){
+        preview.src = url;
+        me.avatar = url;
+        localStorage.setItem('user', JSON.stringify(me));
+        alert('Avatar updated locally');
+      } else alert('Upload returned no url');
+    }catch(e){ console.warn(e); alert('Upload failed'); }
   });
 
-  // Save handler
+  // Save handler — optimistic local + server update if available
   document.getElementById('save').addEventListener('click', async ()=>{
     const newName = nameInput.value.trim();
     const newBio = bioInput.value.trim();
     if(!newName) return alert('Enter a name');
-    if(!me) me = {};
-    me.name = newName; me.bio = newBio;
-    localStorage.setItem('user', JSON.stringify(me));
 
+    if(!me) me = {};
+    me.name = newName;
+    me.bio = newBio;
+    try{ localStorage.setItem('user', JSON.stringify(me)); }catch(e){}
+    // Build payload
     const payload = { name: newName, bio: newBio, avatar: me.avatar || null };
 
     try{
       if(me && me.id){
+        // try PUT /user/:id (some servers may accept)
         const putResp = await fetch(API + '/user/' + encodeURIComponent(me.id), {
-          method: 'PUT',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(payload)
+          method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
         });
         if(putResp.ok){
           const putJson = await putResp.json().catch(()=>null);
@@ -155,10 +139,9 @@
         }
       }
 
+      // fallback endpoint (some servers use updateUser)
       const postResp = await fetch(API + '/updateUser', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(Object.assign({ id: me && me.id ? me.id : null }, payload))
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ id: me && me.id ? me.id : null }, payload))
       });
       if(postResp.ok){
         const pj = await postResp.json().catch(()=>null);
@@ -170,7 +153,6 @@
 
       const txt = await (postResp && postResp.text ? postResp.text().catch(()=>null) : null);
       throw new Error('Server update failed' + (txt ? (': ' + txt) : ''));
-
     }catch(e){
       console.warn('profile save failed', e);
       localStorage.setItem('user', JSON.stringify(me));
@@ -178,7 +160,6 @@
       location.href = 'profile.html?id=' + encodeURIComponent(me.id);
     }
   });
-
 </script>
 </body>
 </html>

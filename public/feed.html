@@ -1,338 +1,768 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Feed • InstaLite</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <link rel="stylesheet" href="style.css">
   <style>
-    :root{ --muted:#7b7b7b; --accent1:linear-gradient(90deg,#06b6d4,#7c3aed); }
-    body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto;margin:0;background:linear-gradient(180deg,#fbfbfd,#f6f2fb);}
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:var(--accent1);color:#fff}
-    .logo{font-weight:800;font-size:20px}
-    .search{width:50%;max-width:720px}
-    .search input{width:100%;padding:12px 16px;border-radius:999px;border:none;outline:none}
-    .top-actions{display:flex;gap:12px;align-items:center}
-    .main{display:flex;gap:22px;width:94%;margin:22px auto}
-    .col{background:#fff;border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(20,20,40,0.06)}
-    .left{width:23%}.center{width:54%}.right{width:23%}
-    .profile-mini{display:flex;gap:12px;align-items:center}
-    .profile-mini img{width:84px;height:84px;border-radius:12px;object-fit:cover;cursor:pointer}
-    .post-create textarea{width:100%;height:70px;padding:12px;border-radius:10px;border:1px solid #f0f0f0;resize:none}
-    .post-create .row{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
-    .post-card{padding:14px;border-radius:12px;margin-top:14px;background:#fff;box-shadow:0 6px 18px rgba(0,0,0,0.03)}
-    .post-card .meta{display:flex;gap:12px;align-items:flex-start}
-    .post-card img.post-image{width:100%;margin-top:12px;border-radius:12px;object-fit:cover}
-    .btn{padding:8px 14px;border-radius:12px;border:none;cursor:pointer}
-    .follow-btn{background:#f0f0f0}
-    .follow-btn.following{background:#111;color:#fff}
-    .muted{color:var(--muted);font-size:13px}
-    .small{font-size:12px;color:var(--muted)}
-    .post-actions{display:flex;gap:8px;margin-top:10px;align-items:center}
-    .like-btn.liked{color:#e63946;font-weight:700}
-    .empty-placeholder{min-height:260px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+    .post-actions { display:flex; gap:10px; align-items:center; }
+    .post .post-head { align-items:center; }
+    .comments-toggle{cursor:pointer;padding:8px 12px;border-radius:12px;border:1px solid rgba(0,0,0,0.06);background:#fff}
+    .count-badge{background:#f3f4f6;padding:6px 8px;border-radius:999px;font-weight:700}
   </style>
 </head>
 <body>
 
-  <div class="topbar">
-    <div style="display:flex;align-items:center;gap:18px">
-      <div class="logo">InstaLite</div>
-      <button class="btn" onclick="location.href='users.html'">Users</button>
+<header class="topbar">
+  <div class="top-inner" 
+       style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:linear-gradient(90deg,#00b4ff,#7a3cff);color:#fff">
+
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="logo-square">IL</div>
+      <div class="brand-title">InstaLite</div>
     </div>
 
-    <div class="search"><input id="searchInput" placeholder="Search users by name or #tag..."></div>
+    <div class="search-wrap" style="position:relative">
+      <div class="search-box">
+        <svg style="width:18px;margin-right:8px" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M9.5,3A6.5,6.5 0 1,0 16,9.5A6.5,6.5 0 0,0 9.5,3M21,21L15.5,15.5"></path>
+        </svg>
 
-    <div class="top-actions">
-      <button class="btn" onclick="location.href='messages.html'">Messages</button>
-      <img id="topAvatar" src="" style="width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer" title="My profile">
+        <input id="search"
+               class="search-input"
+               placeholder="Search users by name or #tag..."
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+               oninput="onSearchInput()">
+      </div>
+
+      <div id="searchResults" 
+           class="search-results hidden"
+           style="top:54px;left:50%;transform:translateX(-50%);"></div>
     </div>
-  </div>
 
-  <div class="main">
-    <!-- LEFT -->
-    <div class="col left">
+    <div class="nav-actions">
+      <button class="nav-btn" onclick="location.href='users.html'">Users</button>
+      <button class="nav-btn" onclick="location.href='messages.html'">Messages</button>
       <div class="profile-mini">
-        <img id="leftAvatar" src="">
+        <img id="miniAvatar" src="" alt="me">
+      </div>
+    </div>
+
+  </div>
+</header>
+
+<main class="layout" style="padding-top:18px;">
+  <aside class="leftcol">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:12px">
+        <img id="leftAvatar" class="avatar-lg" src="">
         <div>
-          <div id="leftName" style="font-weight:700"></div>
-          <div id="leftEmail" class="muted"></div>
-          <div style="margin-top:10px"><button class="btn" onclick="goToProfileId(me?.id)">View Profile</button></div>
+          <div id="leftName" class="name">Loading...</div>
+          <div id="leftEmail" class="muted small"></div>
+          <div style="margin-top:8px">
+            <button class="btn ghost" onclick="goToMyProfile()">View Profile</button>
+          </div>
         </div>
       </div>
-
-      <div style="margin-top:14px">
-        <div style="font-weight:700;margin-bottom:8px">Stories</div>
-        <div><button class="btn" onclick="alert('Stories coming soon')">+ Add Story</button></div>
-      </div>
-    </div>
-
-    <!-- CENTER -->
-    <div class="col center">
-      <div class="post-create" style="background:linear-gradient(180deg,#fff,#fff);">
-        <textarea id="postText" placeholder="Share something awesome..."></textarea>
-        <div class="row" style="display:flex;align-items:center;justify-content:space-between">
-          <div><input type="file" id="postFile" accept="image/*"></div>
-          <div><button class="btn" style="background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff" onclick="createPost()">Post</button></div>
-        </div>
-      </div>
-
-      <div id="feedList" class="empty-placeholder">Loading posts...</div>
-    </div>
-
-    <!-- RIGHT -->
-    <div class="col right">
-      <div style="font-weight:700;margin-bottom:10px">Suggestions</div>
-      <div id="suggestionList"></div>
 
       <div style="margin-top:18px">
-        <div style="font-weight:700;margin-bottom:8px">Trending tags</div>
-        <div id="tagsBox" class="muted">No trending tags</div>
+        <div class="card-title">Stories</div>
+        <div class="stories-row" id="stories"></div>
+        <div style="margin-top:10px">
+          <input type="file" id="storyFile" onchange="uploadStory(event)">
+          <button class="btn" onclick="document.getElementById('storyFile').click()">+ Add Story</button>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <section class="middlecol">
+
+    <div class="card composer big">
+      <img id="composerAvatar" class="avatar-sm" src="">
+      <div style="flex:1">
+        <textarea id="composer" class="textarea" placeholder="Share something awesome..."></textarea>
+
+        <div class="composer-row">
+          <div><input id="postImage" type="file" accept="image/*"></div>
+          <div><button class="btn gradient" onclick="createPost()">Post</button></div>
+        </div>
+
       </div>
     </div>
+
+    <div id="feedList" class="feed-list"></div>
+
+  </section>
+
+  <aside class="rightcol">
+    <div class="card">
+      <div class="card-title">Suggestions</div>
+      <div id="suggestions"></div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="card-title">Trending tags</div>
+      <div id="trendingTags" class="tag-list"></div>
+    </div>
+  </aside>
+
+</main>
+
+<!-- COMMENTS MODAL -->
+<div id="commentsModal" class="modal hidden" 
+     style="display:none;align-items:center;justify-content:center;">
+  <div class="modal-inner">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <strong>Comments</strong>
+      <button onclick="closeComments()">Close</button>
+    </div>
+    <div id="commentsList" style="margin-top:12px"></div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <input id="commentInput" class="input" placeholder="Write a comment..." style="flex:1">
+      <button class="btn gradient" onclick="postComment()">Post</button>
+    </div>
   </div>
+</div>
 
 <script>
-  // ========== CONFIG & STATE ==========
-  const API = "http://localhost:3000";
-  const DEFAULT_AV = "/uploads/default-avatar.png";
+const API = 'http://localhost:3000';
+const DEFAULT_AV = '/uploads/default-avatar.png';
 
-  // reactive local user (read from localStorage; updated when edit-profile writes)
-  let me = null;
-  try { me = JSON.parse(localStorage.getItem("user") || "null"); } catch(e){ me = null; }
+let me = null;
+try {
+  me = JSON.parse(localStorage.getItem('user') || 'null');
   if(me && me.id) me.id = String(me.id);
+} catch(e){ me=null; }
 
-  // update UI from local me
-  function applyLocalUserToFeedUI(){
-    const topAv = document.getElementById("topAvatar");
-    const leftAv = document.getElementById("leftAvatar");
-    const leftName = document.getElementById("leftName");
-    const leftEmail = document.getElementById("leftEmail");
-    if(me){
-      topAv.src = me.avatar || DEFAULT_AV;
-      leftAv.src = me.avatar || DEFAULT_AV;
-      leftName.innerText = me.name || me.email || "Me";
-      leftEmail.innerText = me.email || "";
-      topAv.onclick = ()=> goToProfileId(me.id);
-    } else {
-      topAv.src = DEFAULT_AV;
-      leftAv.src = DEFAULT_AV;
-      leftName.innerText = "Guest";
-      leftEmail.innerText = "";
+function esc(s){ 
+  if(!s) return ''; 
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); 
+}
+
+function goToProfileId(id){ location.href = 'profile.html?id=' + encodeURIComponent(id); }
+function goToMyProfile(){ if(!me) return alert('Log in'); goToProfileId(me.id); }
+
+/* ========================= SEARCH LOGIC ========================= */
+
+const SEARCH_DEBOUNCE_MS = 220;
+let __searchTimer = null;
+
+async function performSearchQuery(q) {
+  q = (q || "").trim();
+  const out = { users: [], tags: [] };
+  if (!q) return out;
+
+  const isTag = q.startsWith('#');
+  const isAt = q.startsWith('@');
+  const cleanQ = (isTag || isAt) ? q.slice(1).trim() : q;
+
+  try {
+    const [ru, rp] = await Promise.allSettled([
+      fetch(API + "/users"),
+      fetch(API + "/allposts")
+    ]);
+
+    let users = [];
+    if (ru.status === "fulfilled" && ru.value.ok) {
+      users = await ru.value.json();
     }
+    users = Array.isArray(users) ? users : (users.users || users.data || []);
+
+    let posts = [];
+    if (rp.status === "fulfilled" && rp.value.ok) {
+      posts = await rp.value.json();
+    }
+    posts = Array.isArray(posts) ? posts : (posts.posts || posts.data || []);
+
+    const tagsCount = {};
+    posts.forEach(p => {
+      const tags = p.tags || [];
+      if (Array.isArray(tags)) {
+        tags.forEach(t => {
+          if (!t) return;
+          const key = String(t).toLowerCase();
+          if (key.includes(cleanQ.toLowerCase())) {
+            tagsCount[key] = (tagsCount[key] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    if (isTag) {
+      out.tags = Object.keys(tagsCount)
+                       .sort((a,b) => tagsCount[b] - tagsCount[a])
+                       .slice(0, 10);
+      return out;
+    }
+
+    const qLower = cleanQ.toLowerCase();
+    const exactId = [];
+    const exactName = [];
+    const starts = [];
+    const includes = [];
+
+    users.forEach(u => {
+      const idStr = String(u.id || "");
+      const nameStr = (u.name || u.username || u.email || "").toString();
+      const nl = nameStr.toLowerCase();
+
+      if (idStr === cleanQ) { exactId.push(u); return; }
+      if (nl === qLower) { exactName.push(u); return; }
+      if (nl.startsWith(qLower)) { starts.push(u); return; }
+      if (nl.includes(qLower)) { includes.push(u); return; }
+    });
+
+    out.users = [...exactId, ...exactName, ...starts, ...includes];
+    out.tags = Object.keys(tagsCount)
+                     .sort((a,b) => tagsCount[b] - tagsCount[a])
+                     .slice(0, 8);
+
+    return out;
+
+  } catch (err) {
+    console.warn("performSearchQuery error", err);
+    return out;
+  }
+}
+
+function renderSearchResults(results, q) {
+  const box = document.getElementById("searchResults");
+  if (!box) return;
+
+  if (results.users.length === 0 && results.tags.length === 0) {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+    return;
   }
 
-  applyLocalUserToFeedUI();
+  let html = "";
 
-  // respond to changes other tabs/pages make to localStorage.user
-  window.addEventListener("storage", (evt)=>{
-    if(evt.key === "user"){
-      try { me = JSON.parse(evt.newValue || "null"); } catch(e){ me = null; }
-      if(me && me.id) me.id = String(me.id);
-      applyLocalUserToFeedUI();
-      // optionally refresh feed metadata
-      // loadFeed();
-    }
-  });
-
-  // ========== HELPERS ==========
-  const el = id => document.getElementById(id);
-  const esc = s => { if(s===null||s===undefined) return ""; return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-  function goToProfileId(id){ if(!id) return alert("Profile id missing"); location.href = "profile.html?id=" + encodeURIComponent(String(id)); }
-
-  // ========== LOAD POSTS (server uses /allposts) ==========
-  async function loadFeed(){
-    el("feedList").classList.add("empty-placeholder");
-    el("feedList").innerText = "Loading posts...";
-    try{
-      const r = await fetch(API + "/allposts");
-      if(!r.ok){
-        el("feedList").classList.remove("empty-placeholder");
-        el("feedList").innerHTML = "<div class='muted'>Could not load posts (status " + r.status + ")</div>";
-        return;
-      }
-      const posts = await r.json();
-      if(!Array.isArray(posts) || posts.length === 0){
-        el("feedList").classList.remove("empty-placeholder");
-        el("feedList").innerHTML = "<div class='muted'>No posts available.</div>";
-        return;
-      }
-      posts.sort((a,b)=> new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
-      el("feedList").classList.remove("empty-placeholder");
-      el("feedList").innerHTML = posts.map(renderPost).join("");
-      refreshLikeButtons();
-    }catch(err){
-      console.error("loadFeed", err);
-      el("feedList").classList.remove("empty-placeholder");
-      el("feedList").innerHTML = "<div class='muted'>Network error while loading posts.</div>";
-    }
-  }
-
-  function renderPost(p){
-    const authorId = String(p.user_id ?? p.userId ?? p.user ?? "");
-    const postId = p.id ?? p.post_id ?? "";
-    const image = p.image_url ?? "";
-    const created = p.created_at ?? p.createdAt ?? "";
-    return `
-      <div class="post-card" data-post-id="${esc(postId)}" data-author-id="${esc(authorId)}">
-        <div class="meta">
-          <img src="${esc(p.avatar || DEFAULT_AV)}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;cursor:pointer" onclick="goToProfileId('${esc(authorId)}')">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;justify-content:space-between">
-              <div>
-                <div onclick="goToProfileId('${esc(authorId)}')" style="font-weight:700;cursor:pointer">${esc(p.name || p.username || 'Unknown')}</div>
-                <div class="small">${new Date(created).toLocaleString()}</div>
-              </div>
-              <div style="text-align:right">
-                ${authorId === me?.id ? `<button class="btn" style="background:#fff;border:1px solid #f1f1f1;color:#b00" onclick="deletePost('${esc(postId)}')">Delete</button>` : `<button class="btn follow-btn" onclick="toggleFollow('${esc(authorId)}', this)">Follow</button>`}
-              </div>
-            </div>
-            <div style="margin-top:10px">${esc(p.content || p.body || "")}</div>
-            ${image ? `<img class="post-image" src="${esc(image)}">` : ""}
-            <div class="post-actions">
-              <button class="btn like-btn" onclick="toggleLike('${esc(postId)}', this)">♡ Like</button>
-              <button class="btn" onclick="openCommentPrompt('${esc(postId)}')">💬 Comment</button>
-              <button class="btn" onclick="sharePost('${esc(postId)}')">🔗 Share</button>
-            </div>
-            <div class="small muted" id="meta-${esc(postId)}">${(p.likes || 0)} likes · ${(p.comments || 0)} comments</div>
+  if (results.users.length) {
+    html += `<div style="font-weight:700;padding:6px 8px">People</div>`;
+    results.users.slice(0, 8).forEach(u => {
+      const avatar = u.avatar || DEFAULT_AV;
+      html += `
+        <div class="search-item" 
+             style="padding:8px 10px;display:flex;align-items:center;gap:10px;cursor:pointer"
+             onclick="hideSearchResults(); goToProfileId('${esc(u.id)}')">
+          <img src="${esc(avatar)}" 
+               style="width:36px;height:36px;border-radius:8px;object-fit:cover">
+          <div>
+            <div style="font-weight:700">${esc(u.name || u.email)}</div>
+            <div class="muted small">${esc(u.email || '')}</div>
           </div>
+        </div>`;
+    });
+  }
+
+  if (results.tags.length) {
+    html += `<div style="font-weight:700;padding:6px 8px">Tags</div>`;
+    results.tags.forEach(t => {
+      html += `
+        <div class="search-item" 
+             style="padding:8px 10px;cursor:pointer"
+             onclick="hideSearchResults(); document.getElementById('search').value='#${esc(t)}'; loadFeed();">
+          #${esc(t)}
+        </div>`;
+    });
+  }
+
+  box.innerHTML = html;
+  box.classList.remove("hidden");
+}
+
+function hideSearchResults(){
+  const box = document.getElementById('searchResults');
+  if(box){
+    box.classList.add('hidden');
+    box.innerHTML = '';
+  }
+}
+
+function onSearchInput(){
+  clearTimeout(__searchTimer);
+  __searchTimer = setTimeout(async () => {
+
+    const raw = (document.getElementById("search").value || "").trim();
+    if (!raw) {
+      hideSearchResults();
+      return;
+    }
+
+    const results = await performSearchQuery(raw);
+
+    /* ⭐ FIXED — ONLY OPEN OTHER USERS AUTOMATICALLY */
+    if (results.users.length === 1) {
+      const u = results.users[0];
+      const isMe = me && String(u.id) === String(me.id);
+
+      if (!isMe && (
+        u.name?.toLowerCase() === raw.toLowerCase() ||
+        String(u.id) === raw
+      )) {
+        hideSearchResults();
+        goToProfileId(u.id);
+        return;
+      }
+    }
+
+    renderSearchResults(results, raw);
+
+  }, SEARCH_DEBOUNCE_MS);
+}
+
+document.getElementById("search").addEventListener("keydown", async ev => {
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+
+    const q = (document.getElementById("search").value || "").trim();
+    if (!q) return;
+
+    const results = await performSearchQuery(q);
+
+    if (results.users.length) {
+      const best = results.users[0];
+      const isMe = me && String(best.id) === String(me.id);
+
+      if (!isMe) {
+        hideSearchResults();
+        goToProfileId(best.id);
+      } else {
+        renderSearchResults(results, q);
+      }
+
+    } else if (results.tags.length) {
+      document.getElementById("search").value = '#' + results.tags[0];
+      hideSearchResults();
+      loadFeed();
+    } else {
+      hideSearchResults();
+    }
+  }
+});
+
+/* ================================================================ */
+/* UI INIT */
+/* ================================================================ */
+
+function applyLocalUserUI(){
+  document.getElementById('miniAvatar').src = (me && me.avatar) || DEFAULT_AV;
+  document.getElementById('leftAvatar').src = (me && me.avatar) || DEFAULT_AV;
+  document.getElementById('leftName').innerText = (me && (me.name || me.email)) || 'Guest';
+  document.getElementById('leftEmail').innerText = (me && me.email) || '';
+  document.getElementById('composerAvatar').src = (me && me.avatar) || DEFAULT_AV;
+}
+
+applyLocalUserUI();
+
+/* ================================================================ */
+/*  SUGGESTIONS */
+/* ================================================================ */
+
+async function loadSuggestions(){
+  const holder = document.getElementById('suggestions');
+  holder.innerHTML = 'Loading…';
+
+  try{
+    const r = await fetch(API + '/users');
+    if(!r.ok){
+      holder.innerHTML='<div class="muted">Cannot load suggestions</div>';
+      return;
+    }
+
+    const users = await r.json();
+    const arr = Array.isArray(users) ? users : (users.data || users.users || []);
+    const meId = me ? String(me.id) : null;
+
+    const suggestions = (arr || []).filter(u => String(u.id) !== meId).slice(0,6);
+
+    holder.innerHTML = suggestions.map(u => {
+      const avatar = u.avatar || DEFAULT_AV;
+      return `
+      <div class="suggestion-row" 
+           style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+        <img src="${esc(avatar)}"
+             style="width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer"
+             onclick="goToProfileId('${u.id}')">
+
+        <div style="flex:1">
+          <div style="font-weight:700;cursor:pointer" 
+               onclick="goToProfileId('${u.id}')">${esc(u.name || u.email)}</div>
+          <div class="muted small">${esc(u.email || '')}</div>
+        </div>
+
+        <button class="follow-btn" onclick="toggleFollow('${u.id}', this)">Follow</button>
+      </div>`;
+    }).join('');
+
+  }catch(e){
+    holder.innerHTML='<div class="muted">Suggestions not available</div>';
+  }
+}
+
+async function toggleFollow(otherId, btnEl){
+  if(!me) return alert("Please log in to follow users");
+
+  const followKey = 'following_' + me.id;
+  const map = JSON.parse(localStorage.getItem(followKey) || '{}');
+
+  const isFollowing = !!map[String(otherId)];
+
+  if(isFollowing){
+    delete map[String(otherId)];
+    btnEl.innerText = 'Follow';
+    try{
+      await fetch(API + '/unfollow',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({follower_id: me.id, followee_id: otherId})
+      });
+    }catch(e){}
+  } else {
+    map[String(otherId)] = true;
+    btnEl.innerText = 'Following';
+    try{
+      await fetch(API + '/follow',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({follower_id: me.id, followee_id: otherId})
+      });
+    }catch(e){}
+  }
+
+  localStorage.setItem(followKey, JSON.stringify(map));
+}
+
+/* ================================================================ */
+/* FEED + POSTS */
+/* ================================================================ */
+
+async function loadFeed(){
+  const container = document.getElementById('feedList');
+  container.innerHTML = '<div class="card muted">Loading posts…</div>';
+
+  try{
+    const resp = await fetch(API + '/allposts', {cache:'no-store'});
+    if(!resp.ok) throw new Error('no posts');
+
+    const data = await resp.json();
+    const posts = Array.isArray(data) ? data : (data.posts || data.data || []);
+
+    if(!posts || posts.length === 0){
+      container.innerHTML='<div class="card muted">No posts yet — share something!</div>';
+      return;
+    }
+
+    posts.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+    container.innerHTML='';
+    posts.forEach(p => container.insertAdjacentHTML('beforeend', renderPost(p)));
+
+  }catch(e){
+    container.innerHTML='<div class="card muted">Could not load posts</div>';
+  }
+}
+
+function extractAuthorId(p){
+  return p.user_id || (p.user && (p.user.id)) || null;
+}
+
+function renderPost(p){
+  const postId = p.id || 0;
+  const authorId = extractAuthorId(p);
+  const name = p.name || (p.user && p.user.name) || 'Unknown';
+  const avatar = p.avatar || (p.user && p.user.avatar) || DEFAULT_AV;
+  const content = p.content || '';
+  const created = p.created_at || '';
+  const img = p.image_url || '';
+  const likes = p.likes || 0;
+  const comments = p.comments || 0;
+  const owner = (me && String(me.id) === String(authorId));
+
+  return `
+    <div class="card post">
+
+      <div class="post-head" 
+        style="display:flex;justify-content:space-between;align-items:flex-start">
+
+        <div class="meta" style="display:flex;gap:12px;align-items:center">
+          <img src="${esc(avatar)}" 
+               class="avatar-sm"
+               onerror="this.src='${DEFAULT_AV}'"
+               style="cursor:pointer"
+               onclick="goToProfileId('${authorId}')">
+          <div>
+            <div style="font-weight:700;cursor:pointer"
+                 onclick="goToProfileId('${authorId}')">${esc(name)}</div>
+            <div class="muted small">${new Date(created).toLocaleString()}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:8px">
+          ${ owner ? `<button class="delete-btn" onclick="deletePost('${postId}')">Delete</button>` : `` }
+        </div>
+
+      </div>
+
+      <div class="post-body">
+        <div class="post-text">${esc(content)}</div>
+
+        ${
+          img 
+          ? `<img src="${esc(img)}" class="post-image" onerror="this.style.display='none'">` 
+          : `` 
+        }
+      </div>
+
+      <div class="post-footer" 
+           style="display:flex;justify-content:space-between;align-items:center">
+        <div class="post-actions">
+          <button class="heart ${likedClass(postId)}" 
+                  onclick="toggleLike('${postId}')">
+              ❤️ <span id="likes-${postId}">${likes}</span>
+          </button>
+          <button class="comments-toggle"
+                  onclick="openComments('${postId}')">
+              💬 <span id="comments-${postId}">${comments}</span>
+          </button>
         </div>
       </div>
-    `;
+    </div>
+  `;
+}
+
+function likedClass(pid){
+  try{
+    return !!localStorage.getItem(`liked_${me?.id}_${pid}`) ? 'liked' : '';
+  }catch(e){
+    return '';
+  }
+}
+
+/* ================================================================ */
+/* CREATE POST */
+/* ================================================================ */
+
+async function createPost(){
+  if(!me) return alert("Log in to post");
+
+  const content = document.getElementById("composer").value.trim();
+  const file = document.getElementById("postImage").files[0];
+
+  if(!content && !file){
+    alert("Write something or attach an image");
+    return;
   }
 
-  // ========== CREATE POST (upload -> addpost) ==========
-  async function createPost(){
-    if(!me || !me.id){ alert("Please log in to post."); return; }
-    const content = el("postText").value.trim();
-    const file = el("postFile").files[0];
-    if(!content && !file) return alert("Write something or choose an image.");
+  try{
+    let image_url = null;
 
-    try{
-      let image_url = null;
-      if(file){
-        const fd = new FormData();
-        fd.append("image", file);
-        if(me && me.id) fd.append("user_id", me.id);
-        const up = await fetch(API + "/upload", { method: "POST", body: fd });
-        const upJson = await up.json().catch(()=>null);
-        if(!up.ok){
-          const err = upJson && (upJson.message || JSON.stringify(upJson)) ? (upJson.message || JSON.stringify(upJson)) : ("Upload failed (status " + up.status + ")");
-          alert("Image upload failed: " + err);
-          console.error("upload error", up.status, upJson);
-          return;
-        }
-        image_url = upJson && (upJson.url || upJson.path) ? (upJson.url || upJson.path) : null;
-      }
+    if(file){
+      const fd = new FormData();
+      fd.append('image', file);
+      fd.append('user_id', me.id);
 
-      const payload = { user_id: me.id, content: content || "", image_url: image_url };
-      const add = await fetch(API + "/addpost", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
-      const addJson = await add.json().catch(()=>null);
-      if(!add.ok){
-        const msg = addJson && (addJson.message || JSON.stringify(addJson)) ? (addJson.message || JSON.stringify(addJson)) : ("Add post failed (status " + add.status + ")");
-        alert("Create post failed: " + msg);
-        console.error("addpost error", add.status, addJson);
-        return;
-      }
-      el("postText").value = ""; el("postFile").value = "";
-      await loadFeed();
-    }catch(e){
-      console.error("createPost exception", e);
-      alert("Network error creating post: " + (e && e.message ? e.message : e));
+      const up = await fetch(API + "/upload", {method:"POST", body:fd});
+      const uj = await up.json();
+      image_url = uj.url || uj.path;
     }
+
+    const res = await fetch(API + "/addpost",{
+      method:"POST",
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({user_id: me.id, content, image_url})
+    });
+
+    if(res.ok){
+      document.getElementById("composer").value="";
+      document.getElementById("postImage").value="";
+      loadFeed();
+    }
+
+  }catch(e){
+    alert("Post failed");
   }
+}
 
-  // ========== DELETE POST ==========
-  async function deletePost(postId){
-    if(!confirm("Delete this post?")) return;
-    try{
-      const r = await fetch(API + "/deletepost/" + encodeURIComponent(postId), { method: "DELETE" });
-      if(!r.ok){ const t = await r.text().catch(()=>null); alert("Delete failed: " + (t || r.status)); return; }
-      await loadFeed();
-    }catch(e){ console.error("deletePost", e); alert("Network error deleting post"); }
+/* ================================================================ */
+/* DELETE POST */
+/* ================================================================ */
+
+async function deletePost(id){
+  if(!confirm("Delete this post?")) return;
+
+  try{
+    await fetch(API + "/deletepost/" + id, {method:"DELETE"});
+    loadFeed();
+  }catch(e){
+    alert("Delete failed");
   }
+}
 
-  // ========== LIKE ==========
-  async function toggleLike(postId, btn){
-    if(!me || !me.id) return alert("Log in to like posts");
-    try{
-      const r = await fetch(API + "/like", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ post_id: postId, user_id: me.id }) });
-      const j = await r.json().catch(()=>null);
-      if(!r.ok) return alert("Like failed: " + (j && j.message ? j.message : r.status));
-      await loadFeed();
-    }catch(e){ console.error("like error", e); alert("Network error liking post"); }
+/* ================================================================ */
+/* LIKE */
+/* ================================================================ */
+
+async function toggleLike(pid){
+  if(!me) return alert("Log in to like posts");
+
+  try{
+    await fetch(API + "/like", {
+      method:"POST",
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({post_id: pid, user_id: me.id})
+    });
+
+    const key = `liked_${me.id}_${pid}`;
+    if(localStorage.getItem(key)) localStorage.removeItem(key);
+    else localStorage.setItem(key,"1");
+
+    loadFeed();
+
+  }catch(e){
+    alert("Like error");
   }
+}
 
-  // ========== COMMENTS ==========
-  async function openCommentPrompt(postId){
-    if(!me || !me.id) return alert("Log in to comment");
-    const text = prompt("Write a comment:");
-    if(!text) return;
-    try{
-      const r = await fetch(API + "/comment", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ post_id: postId, user_id: me.id, content: text }) });
-      const j = await r.json().catch(()=>null);
-      if(!r.ok) return alert("Comment failed: " + (j && j.message ? j.message : r.status));
-      await loadFeed();
-    }catch(e){ console.error("comment error", e); alert("Network error posting comment"); }
-  }
+/* ================================================================ */
+/* COMMENTS */
+/* ================================================================ */
 
-  // ========== SHARE ==========
-  function sharePost(postId){
-    const url = location.origin + "/profile.html?post=" + encodeURIComponent(postId);
-    navigator.clipboard?.writeText(url).then(()=> alert("Link copied to clipboard"), ()=> alert("Copy failed — link: " + url));
-  }
+let currentCommentPost = null;
 
-  // ========== FOLLOW / SUGGESTIONS / SEARCH ==========
-  async function toggleFollow(targetId, btn){
-    if(!me || !me.id) return alert("Log in to follow");
-    const key = "following_" + me.id;
-    let map = JSON.parse(localStorage.getItem(key) || "{}");
-    const isFollowing = !!map[targetId];
-    if(isFollowing){ delete map[targetId]; btn.classList.remove("following"); btn.innerText = "Follow"; }
-    else { map[targetId] = true; btn.classList.add("following"); btn.innerText = "Following"; }
-    localStorage.setItem(key, JSON.stringify(map));
-    try{
-      const url = isFollowing ? API + "/unfollow" : API + "/follow";
-      await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ follower_id: me.id, followee_id: targetId }) });
-    }catch(e){ console.warn("follow API failed", e); }
-  }
+async function openComments(pid){
+  currentCommentPost = pid;
+  document.getElementById("commentsList").innerHTML="<div>Loading...</div>";
+  document.getElementById("commentsModal").style.display="flex";
 
-  el("searchInput").addEventListener("keydown", async (ev)=>{
-    if(ev.key !== "Enter") return;
-    const q = el("searchInput").value.trim().toLowerCase();
-    if(!q) return;
-    try{
-      const r = await fetch(API + "/users");
-      if(!r.ok) return alert("Search failed (server)");
-      const arr = await r.json();
-      const found = arr.find(u => (u.name || "").toLowerCase().includes(q) || String(u.id) === q);
-      if(found) goToProfileId(found.id);
-      else alert("No user matched");
-    }catch(e){ console.error("search error", e); alert("Search failed"); }
-  });
+  try{
+    const r = await fetch(API + "/comments/" + pid);
+    const arr = await r.json();
 
-  async function loadSuggestions(){
-    try{
-      const r = await fetch(API + "/users");
-      if(!r.ok){ el("suggestionList").innerHTML = "<div class='muted'>Could not load</div>"; return; }
-      const users = await r.json();
-      el("suggestionList").innerHTML = users.filter(u => String(u.id) !== String(me?.id)).map(u => `
-        <div class="suggest-row">
-          <div style="display:flex;gap:10px;align-items:center;cursor:pointer" onclick="goToProfileId('${esc(u.id)}')">
-            <img src="${esc(u.avatar || DEFAULT_AV)}" style="width:45px;height:45px;border-radius:10px;object-fit:cover">
-            <div><div style="font-weight:700">${esc(u.name)}</div><div class="muted small">${esc(u.email)}</div></div>
-          </div>
-          <div><button class="btn follow-btn" onclick="toggleFollow('${esc(u.id)}', this)">Follow</button></div>
+    const list = Array.isArray(arr) ? arr : (arr.comments || []);
+
+    const html = list.map(c => `
+      <div style="display:flex;gap:12px;margin:8px 0">
+        <img src="${c.avatar || DEFAULT_AV}"
+             style="width:44px;height:44px;border-radius:10px;object-fit:cover">
+        <div>
+          <div style="font-weight:700">${esc(c.name || c.user)}</div>
+          <div class="muted small">${new Date(c.created_at).toLocaleString()}</div>
+          <div>${esc(c.content)}</div>
         </div>
-      `).join("");
-    }catch(e){ console.warn("suggestions error", e); el("suggestionList").innerHTML = "<div class='muted'>Error</div>"; }
+      </div>
+    `).join('');
+
+    document.getElementById("commentsList").innerHTML = html || "<div>No comments yet</div>";
+
+  }catch(e){
+    document.getElementById("commentsList").innerHTML="Error loading comments";
   }
+}
 
-  function refreshLikeButtons(){ /* no-op; feed reload updates meta */ }
+function closeComments(){
+  document.getElementById("commentsModal").style.display="none";
+  document.getElementById("commentInput").value="";
+  currentCommentPost = null;
+}
 
-  // ========== BOOT ==========
-  loadFeed();
+async function postComment(){
+  if(!me) return alert("Log in to comment");
+
+  const txt = document.getElementById("commentInput").value.trim();
+  if(!txt) return;
+
+  try{
+    await fetch(API + "/comment",{
+      method:"POST",
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({post_id: currentCommentPost, user_id: me.id, content: txt})
+    });
+
+    document.getElementById("commentInput").value="";
+    openComments(currentCommentPost);
+
+  }catch(e){
+    alert("Comment failed");
+  }
+}
+
+/* ================================================================ */
+/* STORIES */
+/* ================================================================ */
+
+async function loadStories(){
+  const wrap = document.getElementById("stories");
+  wrap.innerHTML="";
+
+  try{
+    const r = await fetch(API + "/stories");
+    const arr = await r.json();
+    const stories = Array.isArray(arr) ? arr : (arr.data || arr.stories || []);
+
+    stories.forEach(s => {
+      const div = document.createElement("div");
+      div.className="story-item";
+
+      const img = document.createElement("img");
+      img.src = s.image_url || DEFAULT_AV;
+      img.onclick = () => window.open(img.src,'_blank');
+
+      div.appendChild(img);
+      wrap.appendChild(div);
+    });
+
+  }catch(e){}
+}
+
+async function uploadStory(ev){
+  if(!me) return alert("Log in to add story");
+
+  const file = ev.target.files[0];
+  if(!file) return;
+
+  const fd = new FormData();
+  fd.append('image', file);
+  fd.append('user_id', me.id);
+
+  try{
+    const r = await fetch(API + "/uploadstory", {method:"POST", body:fd});
+    const j = await r.json();
+
+    if(j.url){
+      const node = document.createElement("div");
+      node.className="story-item";
+      node.innerHTML=`<img src="${j.url}" onclick="window.open('${j.url}','_blank')">`;
+      document.getElementById("stories").prepend(node);
+    }
+
+    alert("Story uploaded");
+
+  }catch(e){
+    alert("Story upload failed");
+  }
+}
+
+/* ================================================================ */
+/* BOOTSTRAP APP */
+/* ================================================================ */
+
+(async function boot(){
+  try {
+    me = JSON.parse(localStorage.getItem('user') || 'null');
+    if(me && me.id) me.id = String(me.id);
+  }catch(e){ me=null; }
+
+  applyLocalUserUI();
   loadSuggestions();
+  loadStories();
+  loadFeed();
+})();
 
 </script>
+
 </body>
 </html>

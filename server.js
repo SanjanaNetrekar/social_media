@@ -678,6 +678,72 @@ app.post('/uploadstory', upload.single('image'), async (req, res) => {
   }
 });
 
+// ================= STORY UPLOAD ==================
+app.post("/uploadstory", upload.single("image"), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: "No image provided" });
+        }
+        // Path to uploaded file
+        const url = "/uploads/" + req.file.filename;
+        res.json({ url: url });
+    } catch (err) {
+        console.error("Story Upload Error:", err);
+        res.status(500).json({ message: "Story upload failed" });
+    }
+});
+// ================= ADD STORY ==================
+app.post("/addstory", async (req, res) => {
+    try {
+        const { user_id, image_url, caption, expires_at } = req.body;
+
+        if (!user_id || !image_url) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        const query = `
+            INSERT INTO stories (user_id, image_url, caption, expires_at)
+            VALUES (?, ?, ?, ?)
+        `;
+
+        const values = [
+            user_id,
+            image_url,
+            caption || null,
+            expires_at || null
+        ];
+
+        const [result] = await db.execute(query, values);
+
+        const [story] = await db.execute(
+            "SELECT * FROM stories WHERE id = ?",
+            [result.insertId]
+        );
+
+        res.json({ story: story[0] });
+    } catch (err) {
+        console.error("Add Story Error:", err);
+        res.status(500).json({ message: "Failed to add story" });
+    }
+});
+// ================= GET STORIES ==================
+app.get("/stories", async (req, res) => {
+    try {
+        const query = `
+            SELECT s.*, u.name, u.avatar 
+            FROM stories s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.expires_at IS NULL OR s.expires_at > NOW()
+            ORDER BY s.created_at DESC
+        `;
+
+        const [rows] = await db.execute(query);
+        res.json(rows);
+    } catch (err) {
+        console.error("Get Stories Error:", err);
+        res.status(500).json({ message: "Could not load stories" });
+    }
+});
 
 /* ======================================================================
    START SERVER

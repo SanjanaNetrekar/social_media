@@ -1,265 +1,213 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Profile • InstaLite</title>
-  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
   <style>
-    body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto;margin:0;background:linear-gradient(180deg,#fbfbfd,#f6f2fb)}
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff}
-    .wrap{width:92%;margin:24px auto;display:flex;gap:20px}
-    .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(20,20,40,0.06)}
-    .left{width:32%}.right{width:68%}
-    .pv{display:flex;gap:16px;align-items:center}
-    .pv img{width:120px;height:120px;border-radius:12px;object-fit:cover}
-    .muted{color:#7b7b7b}
-    .counts{display:flex;gap:22px;margin-top:8px}
-    .counts div{cursor:pointer}
-    .post-card{margin-top:14px;padding:12px;border-radius:10px}
-    .modal-back{position:fixed;inset:0;background:rgba(0,0,0,0.3);display:none;align-items:center;justify-content:center;z-index:999}
-    .modal{background:#fff;border-radius:10px;padding:12px;width:420px;max-height:80vh;overflow:auto}
-    .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
-    .follow-btn{background:#f0f0f0}
-    .follow-btn.following{background:#111;color:#fff}
-    .small{font-size:12px;color:#7b7b7b}
+    header{padding:14px 22px;background:linear-gradient(90deg,#00b4ff,#7a3cff);color:#fff;display:flex;align-items:center;justify-content:space-between}
+    .container{max-width:980px;margin:22px auto;padding:8px}
+    .card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 10px 40px rgba(10,10,10,0.06);margin-bottom:18px}
+    .avatar-lg{width:120px;height:120px;border-radius:14px;object-fit:cover}
+    .muted{color:#666}
+    .follow-btn{padding:8px 12px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);cursor:pointer}
+    .follow-btn.following{background:#111;color:#fff;border-color:transparent}
+    .small{font-size:12px}
+    .post-card{ margin-bottom:12px; padding:12px; border-radius:8px; border:1px solid rgba(0,0,0,0.04); }
+    .delete-btn{background:transparent;border:0;color:#b00;cursor:pointer}
   </style>
 </head>
 <body>
-
-  <div class="topbar">
-    <div style="font-weight:700">InstaLite</div>
-    <div style="display:flex;gap:10px;align-items:center">
-      <button class="btn" onclick="location.href='feed.html'">Feed</button>
-      <button class="btn" onclick="location.href='users.html'">Users</button>
+  <header>
+    <div style="display:flex;gap:12px;align-items:center">
+      <div style="width:44px;height:44px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#7a3cff;font-weight:800">IL</div>
+      <div style="font-weight:800">InstaLite</div>
     </div>
-  </div>
+    <div><button onclick="location.href='feed.html'" style="padding:8px 12px;border-radius:8px">Feed</button></div>
+  </header>
 
-  <div class="wrap">
-    <div class="left card">
-      <div class="pv">
-        <img id="profileAvatar" src="">
-        <div>
-          <div id="profileName" style="font-weight:800;font-size:20px"></div>
-          <div id="profileEmail" class="muted"></div>
-          <div class="counts" style="margin-top:10px">
-            <div id="followersCount"><strong id="followersNum">0</strong><div class="small">Followers</div></div>
-            <div id="followingCount"><strong id="followingNum">0</strong><div class="small">Following</div></div>
-          </div>
-          <div style="margin-top:14px">
-            <button id="followBtn" class="btn follow-btn">Follow</button>
-            <button id="editBtn" class="btn" style="display:none;background:#06b6d4;color:#fff" onclick="editProfile()">Edit profile</button>
-          </div>
-        </div>
-      </div>
+  <main class="container">
+    <div id="profileCard" class="card">Loading profile…</div>
 
-      <div style="margin-top:18px" id="profileBio">Profile loaded</div>
+    <div id="postsCard" class="card">
+      <div style="font-weight:700;margin-bottom:12px">Posts</div>
+      <div id="profilePosts">Loading…</div>
     </div>
-
-    <div class="right card">
-      <div style="font-weight:700">Posts</div>
-      <div id="postsArea"></div>
-    </div>
-  </div>
-
-  <div id="modalBackdrop" class="modal-back">
-    <div class="modal" id="listModal">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <strong id="modalTitle">Title</strong>
-        <button onclick="closeModal()">Close</button>
-      </div>
-      <div id="modalList" style="margin-top:10px"></div>
-    </div>
-  </div>
+  </main>
 
 <script>
-  const API = "http://localhost:3000";
-  const DEFAULT_AV = "/uploads/default-avatar.png";
+/* FULL PROFILE.JS FIXED CODE */
+const API = 'http://localhost:3000';
+const DEFAULT_AV = '/uploads/default-avatar.png';
 
-  // reactive local user
-  let me = null;
-  try { me = JSON.parse(localStorage.getItem("user") || "null"); } catch(e){ me = null; }
-  if(me && me.id) me.id = String(me.id);
+const q = (n)=> new URL(location.href).searchParams.get(n);
+const esc = (s)=> s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])):'';
 
-  function q(name){ return new URLSearchParams(location.search).get(name); }
-  function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+let me = null;
+try{ me = JSON.parse(localStorage.getItem('user')||'null'); if(me?.id) me.id=String(me.id);}catch{}
 
-  // viewed user (profile being viewed)
-  let viewedUser = null;
+let viewedUser = null;
 
-  // apply local user to profile UI if viewing our own profile
-  function applyLocalUserToProfileUI(){
-    if(!me) return;
-    if(String(viewedUser?.id) === String(me.id)){
-      const preview = document.getElementById("profileAvatar");
-      const nameEl = document.getElementById("profileName");
-      const emailEl = document.getElementById("profileEmail");
-      if(preview) preview.src = me.avatar || preview.src || DEFAULT_AV;
-      if(nameEl) nameEl.innerText = me.name || nameEl.innerText;
-      if(emailEl) emailEl.innerText = me.email || emailEl.innerText;
-    }
-  }
+async function initProfile(){
+  const id = q('id');
+  if(!id){ alert("No user id"); location.href="feed.html"; return; }
 
-  // merge server user and local copy (prefer server values but keep local avatar if present)
-  function mergeAndStoreUser(serverUser){
-    const local = (localStorage.getItem("user") && JSON.parse(localStorage.getItem("user"))) || {};
-    const merged = Object.assign({}, serverUser, local);
-    try { localStorage.setItem("user", JSON.stringify(merged)); } catch(e){}
-    me = merged;
-    applyLocalUserToProfileUI();
-    return merged;
-  }
+  try{
+    const r = await fetch(API + "/users");
+    const json = await r.json();
+    const list = Array.isArray(json) ? json : (json.users || json.data || []);
 
-  async function initProfile(){
-    const id = q("id");
-    if(!id){ alert("Missing profile id"); location.href = "feed.html"; return; }
+    const user = list.find(u => String(u.id) === String(id));
+    if(!user){ alert("User not found"); location.href='feed.html'; return; }
 
-    try{
-      const r = await fetch(API + "/users");
-      if(!r.ok) throw new Error("Could not load users list");
-      const users = await r.json();
-      const found = users.find(u => String(u.id) === String(id));
-      if(!found){
-        if(String(me?.id) === String(id)){ viewedUser = me; renderProfile(); loadPosts(me.id); return; }
-        throw new Error("User not found");
-      }
-      // merge server user with local user so avatar edits persist
-      viewedUser = mergeAndStoreUser(found);
-      renderProfile();
-      await loadPosts(viewedUser.id);
-      await loadFollowCounts(viewedUser.id);
-    }catch(e){
-      console.error("initProfile", e);
-      document.getElementById("postsArea").innerHTML = "<div class='muted'>Could not load profile.</div>";
-    }
-  }
+    if(String(user.id) === String(me?.id)){
+      viewedUser = {...user, ...me};
+      localStorage.setItem("user", JSON.stringify(viewedUser));
+      me = viewedUser;
+    } else viewedUser = user;
 
-  function renderProfile(){
-    document.getElementById("profileAvatar").src = viewedUser.avatar || DEFAULT_AV;
-    document.getElementById("profileName").innerText = viewedUser.name || viewedUser.email || "User";
-    document.getElementById("profileEmail").innerText = viewedUser.email || "";
-    document.getElementById("profileBio").innerText = viewedUser.bio || "";
-
-    if(String(me?.id) === String(viewedUser.id)){
-      document.getElementById("editBtn").style.display = "inline-block";
-      document.getElementById("followBtn").style.display = "none";
-    } else {
-      document.getElementById("editBtn").style.display = "none";
-      document.getElementById("followBtn").style.display = "inline-block";
-      setupFollowBtn();
-    }
-  }
-
-  async function loadPosts(userId){
-    const target = document.getElementById("postsArea");
-    target.innerHTML = "<div class='muted'>Loading posts...</div>";
-    // try fetch /allposts then filter by user
-    try{
-      const r = await fetch(API + "/allposts");
-      if(!r.ok) { target.innerHTML = "<div class='muted'>No posts</div>"; return; }
-      const all = await r.json();
-      const posts = Array.isArray(all) ? all.filter(p => String(p.user_id ?? p.userId ?? p.user ?? "") === String(userId)) : [];
-      if(posts.length === 0){ target.innerHTML = "<div class='muted'>No posts yet.</div>"; return; }
-      posts.sort((a,b)=> new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
-      target.innerHTML = posts.map(p => `
-        <div class="post-card" style="display:flex;gap:12px;align-items:flex-start">
-          <img src="${esc(p.image_url || p.image || '')}" style="width:120px;height:120px;border-radius:10px;object-fit:cover">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;justify-content:space-between">
-              <div><div style="font-weight:700">${esc(p.title || p.caption || '')}</div><div class="small muted">${new Date(p.created_at || p.createdAt || '').toLocaleString()}</div></div>
-              <div>${ String(p.user_id ?? p.userId ?? p.user ?? "") === String(me?.id) ? `<button class="btn" style="color:#b00;background:#fff;border:1px solid #f1f1f1" onclick="deletePost('${esc(p.id)}')">Delete</button>` : '' }</div>
-            </div>
-            <div style="margin-top:10px">${esc(p.content || p.caption || '')}</div>
-          </div>
-        </div>
-      `).join("");
-    }catch(e){
-      console.error("loadPosts", e);
-      target.innerHTML = "<div class='muted'>Could not load posts</div>";
-    }
-  }
-
-  async function deletePost(postId){
-    if(!confirm("Delete this post?")) return;
-    try{
-      const r = await fetch(API + "/deletepost/" + encodeURIComponent(postId), { method: "DELETE" });
-      if(!r.ok){ const t = await r.text().catch(()=>null); alert("Delete failed: " + (t || r.status)); return; }
-      await loadPosts(viewedUser.id);
-    }catch(e){ console.error("deletePost", e); alert("Network error deleting"); }
-  }
-
-  async function loadFollowCounts(userId){
-    try{
-      const r1 = await fetch(API + "/followers/" + encodeURIComponent(userId));
-      const r2 = await fetch(API + "/following/" + encodeURIComponent(userId));
-      const followers = r1.ok ? await r1.json() : [];
-      const following = r2.ok ? await r2.json() : [];
-      document.getElementById("followersNum").innerText = (followers && followers.length) ? followers.length : 0;
-      document.getElementById("followingNum").innerText = (following && following.length) ? following.length : 0;
-      document.getElementById("followersCount").onclick = ()=> showListModal("Followers", followers || []);
-      document.getElementById("followingCount").onclick = ()=> showListModal("Following", following || []);
-    }catch(e){ console.warn("loadFollowCounts", e); }
-  }
-
-  function showListModal(title, arr){
-    document.getElementById("modalTitle").innerText = title;
-    const list = document.getElementById("modalList"); list.innerHTML = "";
-    if(!arr || arr.length === 0){ list.innerHTML = "<div class='muted'>No users</div>"; document.getElementById("modalBackdrop").style.display = "flex"; return; }
-    arr.forEach(u=>{
-      const row = document.createElement("div");
-      row.style.display = "flex"; row.style.alignItems = "center"; row.style.gap = "10px"; row.style.padding = "8px"; row.style.cursor = "pointer";
-      row.onclick = ()=> { location.href = "profile.html?id=" + encodeURIComponent(u.id); };
-      row.innerHTML = `<img src="${esc(u.avatar || DEFAULT_AV)}" style="width:46px;height:46px;border-radius:8px;object-fit:cover"><div><div style="font-weight:700">${esc(u.name)}</div><div class="muted small">${esc(u.email||'')}</div></div>`;
-      list.appendChild(row);
-    });
-    document.getElementById("modalBackdrop").style.display = "flex";
-  }
-  function closeModal(){ document.getElementById("modalBackdrop").style.display = "none"; }
-
-  function setupFollowBtn(){
-    const btn = document.getElementById("followBtn");
-    const key = "following_" + me?.id;
-    const map = JSON.parse(localStorage.getItem(key) || "{}");
-    const isFollowing = !!map[String(viewedUser.id)];
-    btn.className = isFollowing ? "btn follow-btn following" : "btn follow-btn";
-    btn.innerText = isFollowing ? "Following" : "Follow";
-    btn.onclick = ()=> toggleFollow(viewedUser.id, btn);
-  }
-
-  async function toggleFollow(targetId, btn){
-    if(!me || !me.id) return alert("Log in to follow");
-    const key = "following_" + me.id;
-    let map = JSON.parse(localStorage.getItem(key) || "{}");
-    const wasFollowing = !!map[targetId];
-    if(wasFollowing) { delete map[targetId]; btn.classList.remove("following"); btn.innerText = "Follow"; }
-    else { map[targetId] = true; btn.classList.add("following"); btn.innerText = "Following"; }
-    localStorage.setItem(key, JSON.stringify(map));
-    try{
-      const url = wasFollowing ? API + "/unfollow" : API + "/follow";
-      await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ follower_id: me.id, followee_id: targetId }) });
-    }catch(e){ console.warn("follow api failed", e); }
+    renderProfile();
     await loadFollowCounts(viewedUser.id);
+    await loadPosts(viewedUser.id);
+
+  }catch(err){
+    console.error(err);
+    document.getElementById("profileCard").innerHTML = "Error loading profile.";
+  }
+}
+
+function renderProfile(){
+  document.getElementById("profileCard").innerHTML = `
+    <div style="display:flex;gap:16px;align-items:center">
+      <img src="${esc(viewedUser.avatar||DEFAULT_AV)}" class="avatar-lg" onerror="this.src='${DEFAULT_AV}'">
+      <div>
+        <div style="font-weight:800;font-size:20px">${esc(viewedUser.name || viewedUser.email)}</div>
+        <div class="muted">${esc(viewedUser.email||'')}</div>
+
+        <div style="margin-top:10px;display:flex;gap:16px">
+          <div id="followersNum"><strong>0</strong><div class="small muted">Followers</div></div>
+          <div id="followingNum"><strong>0</strong><div class="small muted">Following</div></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <button id="followBtn" class="follow-btn">Follow</button>
+          <button id="editBtn"
+                  class="btn"
+                  style="display:none;background:#06b6d4;color:#fff;margin-left:8px"
+                  onclick="editProfile()">Edit Profile</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if(String(me?.id) === String(viewedUser.id)){
+    document.getElementById("editBtn").style.display = "inline-block";
+    document.getElementById("followBtn").style.display = "none";
+  } else {
+    setupFollowButton();
+  }
+}
+
+function editProfile(){
+  location.href = "edit-profile.html?id=" + viewedUser.id;
+}
+
+/* FOLLOWING */
+async function parseMaybeArrayResponse(resp) {
+  if(!resp) return [];
+  if(!resp.ok) return [];
+  try {
+    const j = await resp.json();
+    if (Array.isArray(j)) return j;
+    if (j.data && Array.isArray(j.data)) return j.data;
+    if (j.users && Array.isArray(j.users)) return j.users;
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadFollowCounts(uid){
+  const fa = await fetch(API + `/followers/${uid}`);
+  const fb = await fetch(API + `/following/${uid}`);
+
+  const followers = await parseMaybeArrayResponse(fa);
+  const following = await parseMaybeArrayResponse(fb);
+
+  document.querySelector("#followersNum strong").innerText = followers.length;
+  document.querySelector("#followingNum strong").innerText = following.length;
+}
+
+async function setupFollowButton(){
+  const btn = document.getElementById("followBtn");
+  if(!me) return;
+
+  const r = await fetch(API + `/isfollowing/${me.id}/${viewedUser.id}`);
+  const j = await r.json();
+
+  if(j.following){
+    btn.classList.add("following");
+    btn.innerText="Following";
   }
 
-  function editProfile(){ location.href = "edit-profile.html?id=" + encodeURIComponent(viewedUser.id); }
-
-  // respond to edit-profile changes
-  window.addEventListener("storage", (evt)=>{
-    if(evt.key === "user"){
-      try { me = JSON.parse(evt.newValue || "null"); } catch(e){ me = null; }
-      if(me && me.id) me.id = String(me.id);
-      applyLocalUserToProfileUI();
-      if(viewedUser && String(viewedUser.id) === String(me?.id)){
-        // re-render to pick up latest avatar/name
-        viewedUser = Object.assign({}, viewedUser, me);
-        renderProfile();
-      }
+  btn.onclick = async ()=>{
+    if(btn.classList.contains("following")){
+      await fetch(API + "/unfollow", {
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ follower_id: me.id, followee_id: viewedUser.id })
+      });
+    } else {
+      await fetch(API + "/follow", {
+        method:"POST",
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ follower_id: me.id, followee_id: viewedUser.id })
+      });
     }
-  });
+    setupFollowButton();
+    loadFollowCounts(viewedUser.id);
+  };
+}
 
-  // Start
-  initProfile();
+/* POSTS */
+async function loadPosts(uid){
+  const area = document.getElementById("profilePosts");
+  const r = await fetch(API + "/allposts");
+  const arr = await r.json();
 
+  const list = arr.filter(p => String(p.user_id) === String(uid));
+
+  if(list.length === 0){
+    area.innerHTML = "<div class='muted'>No posts.</div>";
+    return;
+  }
+
+  list.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at));
+
+  area.innerHTML = list.map(p => `
+      <div class="post-card">
+        <div style="display:flex;justify-content:space-between">
+          <div>
+            <div style="font-weight:700">${esc(p.content)}</div>
+            <div class="small muted">${new Date(p.created_at).toLocaleString()}</div>
+          </div>
+          ${String(me?.id)===String(uid)
+            ? `<button class="delete-btn" onclick="deletePost('${p.id}')">Delete</button>`
+            : ''}
+        </div>
+        ${p.image_url ? `<img src="${p.image_url}" style="width:100%;border-radius:10px;margin-top:8px">` : ''}
+      </div>
+    `).join('');
+}
+
+async function deletePost(id){
+  if(!confirm("Delete post?")) return;
+  await fetch(API + `/deletepost/${id}`, { method:"DELETE" });
+  loadPosts(viewedUser.id);
+}
+
+initProfile();
 </script>
-
 </body>
 </html>

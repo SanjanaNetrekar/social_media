@@ -209,3 +209,42 @@ body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;co
   .leftcol,.rightcol{display:none}
   .auth-card{flex-direction:column}
 }
+
+
+
+/* Search dropdown: position below the input like Instagram */
+.search-wrap { position: relative; } /* ensure parent is positioned */
+
+.search-results {
+  position: absolute;
+  top: calc(100% + 10px);    /* place just below input with small gap */
+  left: 0;
+  width: 100%;               /* full width of the search box container */
+  max-width: 560px;          /* match your .search-box width */
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(11,22,40,0.08);
+  border: 1px solid rgba(11,22,40,0.06);
+  z-index: 120;
+  overflow: hidden;
+}
+
+/* internal list styling */
+.search-results .search-item{
+  padding: 10px 12px;
+  display:flex;
+  gap:10px;
+  align-items:center;
+  cursor:pointer;
+  transition: background .12s;
+}
+.search-results .search-item:hover{ background: #f5f7fb; }
+.search-results .search-item img{ width:36px;height:36px;border-radius:8px;object-fit:cover; }
+
+/* small section headers inside dropdown */
+.search-results > div[style*="font-weight:700"]{ padding:8px 12px; font-weight:800; color:#111; }
+
+/* ensure mobile fits */
+@media (max-width:900px){
+  .search-results { max-width: 70vw; left: 50%; transform: translateX(-50%); }
+}
