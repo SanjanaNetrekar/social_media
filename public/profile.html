@@ -4,210 +4,352 @@
   <meta charset="utf-8" />
   <title>Profile • InstaLite</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
   <style>
-    header{padding:14px 22px;background:linear-gradient(90deg,#00b4ff,#7a3cff);color:#fff;display:flex;align-items:center;justify-content:space-between}
-    .container{max-width:980px;margin:22px auto;padding:8px}
-    .card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 10px 40px rgba(10,10,10,0.06);margin-bottom:18px}
-    .avatar-lg{width:120px;height:120px;border-radius:14px;object-fit:cover}
-    .muted{color:#666}
-    .follow-btn{padding:8px 12px;border-radius:12px;border:1px solid rgba(0,0,0,0.08);cursor:pointer}
-    .follow-btn.following{background:#111;color:#fff;border-color:transparent}
-    .small{font-size:12px}
-    .post-card{ margin-bottom:12px; padding:12px; border-radius:8px; border:1px solid rgba(0,0,0,0.04); }
-    .delete-btn{background:transparent;border:0;color:#b00;cursor:pointer}
+    /* Profile page layout - Instagram-like */
+    :root { --maxw:1100px; --muted:#6b7280; --card-bg:#fff; }
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:0;background:linear-gradient(180deg,#fff6fb,#f8feff);color:#0f1720}
+    .topbar{background:linear-gradient(90deg,#00b4ff,#7a3cff);padding:12px 20px;position:sticky;top:0;z-index:60}
+    .top-inner{max-width:var(--maxw);margin:0 auto;display:flex;align-items:center;justify-content:space-between;color:#fff}
+    .logo-square{width:44px;height:44px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(90deg,#ff6b94,#7b3cff);color:#fff;font-weight:800}
+    .brand-title{font-weight:800;font-size:18px}
+    main{max-width:var(--maxw);margin:22px auto;padding:0 16px}
+    .profile-head{display:flex;gap:28px;align-items:center}
+    .profile-avatar{width:150px;height:150px;border-radius:50%;object-fit:cover;box-shadow:0 10px 30px rgba(11,22,40,0.06);border:4px solid #fff}
+    .profile-info{flex:1}
+    .profile-name{font-size:24px;font-weight:800}
+    .profile-email{color:var(--muted);margin-top:6px}
+    .stats{display:flex;gap:26px;margin-top:12px;align-items:center}
+    .stat{font-weight:800;font-size:16px;cursor:pointer}
+    .edit-btn{margin-left:12px;padding:8px 14px;border-radius:8px;border:0;background:#0095f6;color:#fff;font-weight:700;cursor:pointer}
+    .card{background:var(--card-bg);border-radius:12px;padding:14px;box-shadow:0 12px 30px rgba(11,22,40,0.04);border:1px solid rgba(11,22,40,0.04)}
+    .section{margin-top:18px}
+    /* Posts grid */
+    .post-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .post-grid .post-thumb{width:100%;aspect-ratio:1/1;overflow:hidden;border-radius:8px;cursor:pointer;display:block}
+    .post-grid img{width:100%;height:100%;object-fit:cover;display:block}
+    /* Modal (followers/following) */
+    .pf-modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;place-items:center;z-index:9999}
+    .pf-box{width:92%;max-width:520px;background:#fff;border-radius:12px;padding:12px;max-height:80vh;overflow:auto}
+    .pf-row{display:flex;gap:12px;align-items:center;padding:8px;border-bottom:1px solid rgba(11,22,40,0.04);cursor:pointer}
+    .pf-row img{width:52px;height:52px;border-radius:50%;object-fit:cover}
+    .pf-close{float:right;border:0;background:#efefef;padding:6px 10px;border-radius:8px;cursor:pointer}
+    .muted{color:var(--muted)}
+    @media(max-width:900px){
+      .profile-head{flex-direction:column;align-items:flex-start}
+      .post-grid{grid-template-columns:repeat(2,1fr)}
+      .profile-avatar{width:120px;height:120px}
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div style="display:flex;gap:12px;align-items:center">
-      <div style="width:44px;height:44px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#7a3cff;font-weight:800">IL</div>
-      <div style="font-weight:800">InstaLite</div>
-    </div>
-    <div><button onclick="location.href='feed.html'" style="padding:8px 12px;border-radius:8px">Feed</button></div>
-  </header>
 
-  <main class="container">
-    <div id="profileCard" class="card">Loading profile…</div>
-
-    <div id="postsCard" class="card">
-      <div style="font-weight:700;margin-bottom:12px">Posts</div>
-      <div id="profilePosts">Loading…</div>
+<header class="topbar">
+  <div class="top-inner">
+    <div style="display:flex;align-items:center;gap:12px;cursor:pointer" onclick="location.href='feed.html'">
+      <div class="logo-square">IL</div>
+      <div class="brand-title">InstaLite</div>
     </div>
-  </main>
+    <div>
+      <button onclick="location.href='feed.html'" style="background:transparent;border:1px solid rgba(255,255,255,0.12);padding:8px 10px;border-radius:8px;color:#fff;cursor:pointer">Feed</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="profile-head">
+      <img id="profileAvatar" class="profile-avatar" src="/uploads/default-avatar.png" alt="avatar">
+      <div class="profile-info">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div>
+            <div id="profileName" class="profile-name">Loading...</div>
+            <div id="profileEmail" class="profile-email muted"></div>
+          </div>
+          <div style="margin-left:auto">
+            <button id="editProfileBtn" class="edit-btn" onclick="goToEdit()" style="display:none">Edit Profile</button>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><span id="postsCount">0</span><div class="muted small">Posts</div></div>
+          <div class="stat" onclick="openPf('followers')"><span id="followersCount">0</span><div class="muted small">Followers</div></div>
+          <div class="stat" onclick="openPf('following')"><span id="followingCount">0</span><div class="muted small">Following</div></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="section card">
+    <h3 style="margin:0 0 12px 0">Posts</h3>
+    <div id="postsGrid" class="post-grid">
+      <!-- posts inserted here -->
+    </div>
+  </div>
+</main>
+
+<!-- Followers/Following modal -->
+<div id="pfModal" class="pf-modal" role="dialog" aria-hidden="true">
+  <div class="pf-box card">
+    <button class="pf-close" onclick="closePf()">Close</button>
+    <h3 id="pfTitle">Users</h3>
+    <div id="pfList" style="margin-top:8px"></div>
+  </div>
+</div>
 
 <script>
-/* FULL PROFILE.JS FIXED CODE */
 const API = 'http://localhost:3000';
 const DEFAULT_AV = '/uploads/default-avatar.png';
 
-const q = (n)=> new URL(location.href).searchParams.get(n);
-const esc = (s)=> s?String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])):'';
+function esc(s){ if(s==null) return ''; return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 let me = null;
-try{ me = JSON.parse(localStorage.getItem('user')||'null'); if(me?.id) me.id=String(me.id);}catch{}
+try{ me = JSON.parse(localStorage.getItem('user') || 'null'); if(me && me.id) me.id = String(me.id); }catch(e){ me = null; }
 
-let viewedUser = null;
+const params = new URLSearchParams(location.search);
+let profileId = params.get('id') || (me && me.id);
 
-async function initProfile(){
-  const id = q('id');
-  if(!id){ alert("No user id"); location.href="feed.html"; return; }
+document.getElementById('editProfileBtn').style.display = (me && String(me.id) === String(profileId)) ? 'inline-block' : 'none';
 
+function goToEdit(){ location.href = 'edit-profile.html' + (profileId ? ('?id=' + encodeURIComponent(profileId)) : ''); }
+
+/* Robust fetch helper with fallbacks - returns parsed json or null */
+async function tryFetchJson(url){
   try{
-    const r = await fetch(API + "/users");
-    const json = await r.json();
-    const list = Array.isArray(json) ? json : (json.users || json.data || []);
-
-    const user = list.find(u => String(u.id) === String(id));
-    if(!user){ alert("User not found"); location.href='feed.html'; return; }
-
-    if(String(user.id) === String(me?.id)){
-      viewedUser = {...user, ...me};
-      localStorage.setItem("user", JSON.stringify(viewedUser));
-      me = viewedUser;
-    } else viewedUser = user;
-
-    renderProfile();
-    await loadFollowCounts(viewedUser.id);
-    await loadPosts(viewedUser.id);
-
-  }catch(err){
-    console.error(err);
-    document.getElementById("profileCard").innerHTML = "Error loading profile.";
-  }
+    const r = await fetch(url, { cache: 'no-store' });
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
 }
 
-function renderProfile(){
-  document.getElementById("profileCard").innerHTML = `
-    <div style="display:flex;gap:16px;align-items:center">
-      <img src="${esc(viewedUser.avatar||DEFAULT_AV)}" class="avatar-lg" onerror="this.src='${DEFAULT_AV}'">
-      <div>
-        <div style="font-weight:800;font-size:20px">${esc(viewedUser.name || viewedUser.email)}</div>
-        <div class="muted">${esc(viewedUser.email||'')}</div>
+/* LOAD PROFILE: try common endpoints */
+async function loadProfile(){
+  if(!profileId){ document.getElementById('profileName').innerText = 'No profile specified'; return; }
 
-        <div style="margin-top:10px;display:flex;gap:16px">
-          <div id="followersNum"><strong>0</strong><div class="small muted">Followers</div></div>
-          <div id="followingNum"><strong>0</strong><div class="small muted">Following</div></div>
-        </div>
+  // Possibilities to try
+  const tries = [
+    `${API}/users/${encodeURIComponent(profileId)}`,
+    `${API}/user/${encodeURIComponent(profileId)}`,
+    `${API}/profile/${encodeURIComponent(profileId)}`,
+    `${API}/users?id=${encodeURIComponent(profileId)}`,
+    `${API}/users`
+  ];
 
-        <div style="margin-top:12px">
-          <button id="followBtn" class="follow-btn">Follow</button>
-          <button id="editBtn"
-                  class="btn"
-                  style="display:none;background:#06b6d4;color:#fff;margin-left:8px"
-                  onclick="editProfile()">Edit Profile</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  if(String(me?.id) === String(viewedUser.id)){
-    document.getElementById("editBtn").style.display = "inline-block";
-    document.getElementById("followBtn").style.display = "none";
-  } else {
-    setupFollowButton();
-  }
-}
-
-function editProfile(){
-  location.href = "edit-profile.html?id=" + viewedUser.id;
-}
-
-/* FOLLOWING */
-async function parseMaybeArrayResponse(resp) {
-  if(!resp) return [];
-  if(!resp.ok) return [];
-  try {
-    const j = await resp.json();
-    if (Array.isArray(j)) return j;
-    if (j.data && Array.isArray(j.data)) return j.data;
-    if (j.users && Array.isArray(j.users)) return j.users;
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-async function loadFollowCounts(uid){
-  const fa = await fetch(API + `/followers/${uid}`);
-  const fb = await fetch(API + `/following/${uid}`);
-
-  const followers = await parseMaybeArrayResponse(fa);
-  const following = await parseMaybeArrayResponse(fb);
-
-  document.querySelector("#followersNum strong").innerText = followers.length;
-  document.querySelector("#followingNum strong").innerText = following.length;
-}
-
-async function setupFollowButton(){
-  const btn = document.getElementById("followBtn");
-  if(!me) return;
-
-  const r = await fetch(API + `/isfollowing/${me.id}/${viewedUser.id}`);
-  const j = await r.json();
-
-  if(j.following){
-    btn.classList.add("following");
-    btn.innerText="Following";
-  }
-
-  btn.onclick = async ()=>{
-    if(btn.classList.contains("following")){
-      await fetch(API + "/unfollow", {
-        method:"POST",
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ follower_id: me.id, followee_id: viewedUser.id })
-      });
-    } else {
-      await fetch(API + "/follow", {
-        method:"POST",
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ follower_id: me.id, followee_id: viewedUser.id })
-      });
+  let user = null;
+  for(const url of tries){
+    const j = await tryFetchJson(url);
+    if(!j) continue;
+    if(Array.isArray(j)){
+      user = j.find(u => String(u.id) === String(profileId) || String(u.email) === String(profileId)) || j[0];
+    } else if(j && (j.id || j._id || j.user)) {
+      // direct object
+      user = j;
+    } else if(j && Array.isArray(j.data)) {
+      user = j.data.find(u => String(u.id) === String(profileId)) || j.data[0];
+    } else if(j && Array.isArray(j.users)) {
+      user = j.users.find(u => String(u.id) === String(profileId)) || j.users[0];
+    } else if(typeof j === 'object' && Object.keys(j).length){
+      // fallback - try to find within object
+      user = j;
     }
-    setupFollowButton();
-    loadFollowCounts(viewedUser.id);
-  };
-}
+    if(user) break;
+  }
 
-/* POSTS */
-async function loadPosts(uid){
-  const area = document.getElementById("profilePosts");
-  const r = await fetch(API + "/allposts");
-  const arr = await r.json();
+  if(!user){
+    // Last resort: fetch all users and pick matching
+    const all = await tryFetchJson(`${API}/users`);
+    const arr = Array.isArray(all)? all : (all && (all.data||all.users) ? (all.data||all.users) : []);
+    user = (arr||[]).find(u => String(u.id) === String(profileId) || String(u.email) === String(profileId));
+  }
 
-  const list = arr.filter(p => String(p.user_id) === String(uid));
-
-  if(list.length === 0){
-    area.innerHTML = "<div class='muted'>No posts.</div>";
+  if(!user){
+    document.getElementById('profileName').innerText = 'User not found';
     return;
   }
 
-  list.sort((a,b)=> new Date(b.created_at) - new Date(a.created_at));
+  // Fill UI
+  const name = user.name || user.username || user.email || 'User';
+  const email = user.email || '';
+  const avatar = user.avatar || user.image || DEFAULT_AV;
+  document.getElementById('profileName').innerText = name;
+  document.getElementById('profileEmail').innerText = email;
+  const img = document.getElementById('profileAvatar'); img.src = avatar; img.onerror = ()=> img.src = DEFAULT_AV;
 
-  area.innerHTML = list.map(p => `
-      <div class="post-card">
-        <div style="display:flex;justify-content:space-between">
-          <div>
-            <div style="font-weight:700">${esc(p.content)}</div>
-            <div class="small muted">${new Date(p.created_at).toLocaleString()}</div>
-          </div>
-          ${String(me?.id)===String(uid)
-            ? `<button class="delete-btn" onclick="deletePost('${p.id}')">Delete</button>`
-            : ''}
-        </div>
-        ${p.image_url ? `<img src="${p.image_url}" style="width:100%;border-radius:10px;margin-top:8px">` : ''}
-      </div>
-    `).join('');
+  // load posts & counts
+  await loadPostsForUser(profileId);
+  await loadCounts(profileId);
 }
 
-async function deletePost(id){
-  if(!confirm("Delete post?")) return;
-  await fetch(API + `/deletepost/${id}`, { method:"DELETE" });
-  loadPosts(viewedUser.id);
+/* LOAD POSTS (tries multiple endpoints) */
+async function loadPostsForUser(uid){
+  const grid = document.getElementById('postsGrid');
+  grid.innerHTML = '<div class="muted">Loading posts…</div>';
+
+  const tries = [
+    `${API}/posts?user_id=${encodeURIComponent(uid)}`,
+    `${API}/posts/${encodeURIComponent(uid)}`,
+    `${API}/userposts/${encodeURIComponent(uid)}`,
+    `${API}/allposts`,
+    `${API}/posts`
+  ];
+
+  let posts = null;
+  for(const url of tries){
+    const j = await tryFetchJson(url);
+    if(!j) continue;
+    if(Array.isArray(j)) posts = j;
+    else if(Array.isArray(j.data)) posts = j.data;
+    else if(Array.isArray(j.posts)) posts = j.posts;
+    else if(Array.isArray(j.userPosts)) posts = j.userPosts;
+    if(posts) break;
+  }
+
+  // If we got posts array, filter to this user
+  if(Array.isArray(posts)){
+    // Common post author keys: user_id, user.id, author_id, owner
+    posts = posts.filter(p => {
+      const author = p.user_id || (p.user && (p.user.id || p.user.user_id)) || p.userId || p.author_id || p.owner || p.owner_id;
+      return String(author) === String(uid) || String(p.user?.email) === String(uid);
+    });
+  } else {
+    posts = [];
+  }
+
+  document.getElementById('postsCount').innerText = posts.length || 0;
+
+  if(posts.length === 0){
+    grid.innerHTML = '<div class="muted">No posts yet</div>';
+    return;
+  }
+
+  grid.innerHTML = posts.map(p => {
+    const img = p.image_url || p.image || p.url || '';
+    const id = p.id || p.post_id || '';
+    return `<a class="post-thumb" href="javascript:void(0)" onclick="openPost('${esc(id)}')"><img src="${esc(img)}" onerror="this.style.display=\\'none\\'"></a>`;
+  }).join('');
 }
 
-initProfile();
+/* openPost: link to feed with anchor or simply open image in new tab */
+function openPost(id){
+  // Try go to feed with anchor (if you have handling) else nothing harmful
+  if(!id){ return; }
+  // If feed handles anchors like #post-<id>, navigate there
+  location.href = 'feed.html#post-' + encodeURIComponent(id);
+}
+
+/* LOAD follower & following counts robustly and normalize responses */
+async function loadCounts(uid){
+  // Try endpoints in parallel
+  const triesFollowers = [
+    `${API}/followers/${encodeURIComponent(uid)}`,
+    `${API}/followers?user_id=${encodeURIComponent(uid)}`,
+    `${API}/followers?id=${encodeURIComponent(uid)}`,
+    `${API}/user_followers/${encodeURIComponent(uid)}`,
+  ];
+  const triesFollowing = [
+    `${API}/following/${encodeURIComponent(uid)}`,
+    `${API}/following?user_id=${encodeURIComponent(uid)}`,
+    `${API}/following?id=${encodeURIComponent(uid)}`,
+    `${API}/user_following/${encodeURIComponent(uid)}`,
+  ];
+
+  // helper to try multiple endpoints and normalize to array
+  async function tryList(urls){
+    for(const u of urls){
+      const j = await tryFetchJson(u);
+      if(!j) continue;
+      if(Array.isArray(j)) return j;
+      if(Array.isArray(j.data)) return j.data;
+      if(Array.isArray(j.followers)) return j.followers;
+      if(Array.isArray(j.following)) return j.following;
+      if(Array.isArray(j.users)) return j.users;
+      // if object with keys mapping follower objects, try to gather
+      if(typeof j === 'object'){
+        // gather array-like properties
+        for(const k of ['items','list','rows']) if(Array.isArray(j[k])) return j[k];
+      }
+    }
+    return [];
+  }
+
+  try{
+    const [followers, following] = await Promise.all([ tryList(triesFollowers), tryList(triesFollowing) ]);
+    document.getElementById('followersCount').innerText = (Array.isArray(followers) ? followers.length : 0);
+    document.getElementById('followingCount').innerText = (Array.isArray(following) ? following.length : 0);
+  }catch(e){
+    console.warn('loadCounts error', e);
+    document.getElementById('followersCount').innerText = 0;
+    document.getElementById('followingCount').innerText = 0;
+  }
+}
+
+/* SHOW modal list - fetch robustly then render clickable rows */
+async function openPf(kind){
+  // kind = 'followers' or 'following'
+  const modal = document.getElementById('pfModal');
+  const listEl = document.getElementById('pfList');
+  const title = document.getElementById('pfTitle');
+  title.innerText = (kind === 'followers' ? 'Followers' : 'Following');
+  listEl.innerHTML = '<div class="muted">Loading…</div>';
+  modal.style.display = 'grid';
+
+  const tries = (kind === 'followers') ? [
+    `${API}/followers/${encodeURIComponent(profileId)}`,
+    `${API}/followers?user_id=${encodeURIComponent(profileId)}`,
+    `${API}/followers?id=${encodeURIComponent(profileId)}`,
+    `${API}/user_followers/${encodeURIComponent(profileId)}`
+  ] : [
+    `${API}/following/${encodeURIComponent(profileId)}`,
+    `${API}/following?user_id=${encodeURIComponent(profileId)}`,
+    `${API}/following?id=${encodeURIComponent(profileId)}`,
+    `${API}/user_following/${encodeURIComponent(profileId)}`
+  ];
+
+  let data = null;
+  for(const url of tries){
+    const j = await tryFetchJson(url);
+    if(!j) continue;
+    if(Array.isArray(j)) { data = j; break; }
+    if(Array.isArray(j.data)) { data = j.data; break; }
+    if(Array.isArray(j.followers)) { data = j.followers; break; }
+    if(Array.isArray(j.following)) { data = j.following; break; }
+    if(Array.isArray(j.users)) { data = j.users; break; }
+  }
+
+  if(!data) {
+    listEl.innerHTML = '<div class="muted">Could not load users</div>';
+    return;
+  }
+
+  if(data.length === 0){
+    listEl.innerHTML = '<div class="muted">No users to show</div>';
+    return;
+  }
+
+  listEl.innerHTML = data.map(u => {
+    const avatar = (u && (u.avatar || u.image || u.image_url)) || DEFAULT_AV;
+    const id = u.id || u.user_id || u._id || u.email || '';
+    const name = u.name || u.username || u.email || 'User';
+    return `<div class="pf-row" onclick="goProfile('${esc(id)}')">
+      <img src="${esc(avatar)}" onerror="this.src='${DEFAULT_AV}'">
+      <div><div style="font-weight:700">${esc(name)}</div><div class="muted small">${esc(u.email||'')}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function closePf(){ document.getElementById('pfModal').style.display = 'none'; document.getElementById('pfList').innerHTML = ''; }
+
+function goProfile(id){
+  if(!id) return;
+  location.href = 'profile.html?id=' + encodeURIComponent(id);
+}
+
+/* Boot */
+(async function boot(){
+  try{ me = JSON.parse(localStorage.getItem('user') || 'null'); if(me && me.id) me.id = String(me.id);}catch(e){ me=null; }
+  await loadProfile();
+})();
 </script>
 </body>
 </html>

@@ -248,3 +248,18 @@ body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;co
 @media (max-width:900px){
   .search-results { max-width: 70vw; left: 50%; transform: translateX(-50%); }
 }
+
+
+/* ---------- suggestion avatar round + fallback improvements ---------- */
+.suggestion-row img {
+  width:44px;
+  height:44px;
+  border-radius:50%;         /* make it round */
+  object-fit:cover;
+  display:block;
+  border:2px solid rgba(0,0,0,0.04);
+  background: #f6f7fb;
+}
+
+/* Slight layout tweak so long names don't overflow on small screens */
+.suggestion-row > div { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
