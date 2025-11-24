@@ -11,6 +11,7 @@
     .logo{font-weight:800;font-size:20px}
     .search{width:50%;max-width:720px}
     .search input{width:100%;padding:12px 16px;border-radius:999px;border:none;outline:none}
+    .top-actions{display:flex;gap:12px;align-items:center}
     .main{display:flex;gap:22px;width:94%;margin:22px auto}
     .col{background:#fff;border-radius:14px;padding:16px;box-shadow:0 8px 30px rgba(20,20,40,0.06)}
     .left{width:23%}.center{width:54%}.right{width:23%}
@@ -41,13 +42,14 @@
 
     <div class="search"><input id="searchInput" placeholder="Search users by name or #tag..."></div>
 
-    <div style="display:flex;gap:12px;align-items:center">
+    <div class="top-actions">
       <button class="btn" onclick="location.href='messages.html'">Messages</button>
       <img id="topAvatar" src="" style="width:44px;height:44px;border-radius:10px;object-fit:cover;cursor:pointer" title="My profile">
     </div>
   </div>
 
   <div class="main">
+    <!-- LEFT -->
     <div class="col left">
       <div class="profile-mini">
         <img id="leftAvatar" src="">
@@ -57,16 +59,18 @@
           <div style="margin-top:10px"><button class="btn" onclick="goToProfileId(me?.id)">View Profile</button></div>
         </div>
       </div>
+
       <div style="margin-top:14px">
         <div style="font-weight:700;margin-bottom:8px">Stories</div>
         <div><button class="btn" onclick="alert('Stories coming soon')">+ Add Story</button></div>
       </div>
     </div>
 
+    <!-- CENTER -->
     <div class="col center">
-      <div class="post-create">
+      <div class="post-create" style="background:linear-gradient(180deg,#fff,#fff);">
         <textarea id="postText" placeholder="Share something awesome..."></textarea>
-        <div class="row">
+        <div class="row" style="display:flex;align-items:center;justify-content:space-between">
           <div><input type="file" id="postFile" accept="image/*"></div>
           <div><button class="btn" style="background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff" onclick="createPost()">Post</button></div>
         </div>
@@ -75,9 +79,11 @@
       <div id="feedList" class="empty-placeholder">Loading posts...</div>
     </div>
 
+    <!-- RIGHT -->
     <div class="col right">
       <div style="font-weight:700;margin-bottom:10px">Suggestions</div>
       <div id="suggestionList"></div>
+
       <div style="margin-top:18px">
         <div style="font-weight:700;margin-bottom:8px">Trending tags</div>
         <div id="tagsBox" class="muted">No trending tags</div>
@@ -86,59 +92,73 @@
   </div>
 
 <script>
+  // ========== CONFIG & STATE ==========
   const API = "http://localhost:3000";
-  const DEFAULT_AV = "/uploads/default-avatar.png"; // not critical, server avatars override
+  const DEFAULT_AV = "/uploads/default-avatar.png";
 
-  // current logged-in user from localStorage
+  // reactive local user (read from localStorage; updated when edit-profile writes)
   let me = null;
   try { me = JSON.parse(localStorage.getItem("user") || "null"); } catch(e){ me = null; }
   if(me && me.id) me.id = String(me.id);
 
+  // update UI from local me
+  function applyLocalUserToFeedUI(){
+    const topAv = document.getElementById("topAvatar");
+    const leftAv = document.getElementById("leftAvatar");
+    const leftName = document.getElementById("leftName");
+    const leftEmail = document.getElementById("leftEmail");
+    if(me){
+      topAv.src = me.avatar || DEFAULT_AV;
+      leftAv.src = me.avatar || DEFAULT_AV;
+      leftName.innerText = me.name || me.email || "Me";
+      leftEmail.innerText = me.email || "";
+      topAv.onclick = ()=> goToProfileId(me.id);
+    } else {
+      topAv.src = DEFAULT_AV;
+      leftAv.src = DEFAULT_AV;
+      leftName.innerText = "Guest";
+      leftEmail.innerText = "";
+    }
+  }
+
+  applyLocalUserToFeedUI();
+
+  // respond to changes other tabs/pages make to localStorage.user
+  window.addEventListener("storage", (evt)=>{
+    if(evt.key === "user"){
+      try { me = JSON.parse(evt.newValue || "null"); } catch(e){ me = null; }
+      if(me && me.id) me.id = String(me.id);
+      applyLocalUserToFeedUI();
+      // optionally refresh feed metadata
+      // loadFeed();
+    }
+  });
+
+  // ========== HELPERS ==========
   const el = id => document.getElementById(id);
   const esc = s => { if(s===null||s===undefined) return ""; return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-  function goToProfileId(id){ if(!id) return; location.href = "profile.html?id=" + encodeURIComponent(String(id)); }
+  function goToProfileId(id){ if(!id) return alert("Profile id missing"); location.href = "profile.html?id=" + encodeURIComponent(String(id)); }
 
-  // UI setup
-  if(me){
-    el("topAvatar").src = me.avatar || DEFAULT_AV;
-    el("leftAvatar").src = me.avatar || DEFAULT_AV;
-    el("leftName").innerText = me.name || me.email || "Me";
-    el("leftEmail").innerText = me.email || "";
-    el("topAvatar").onclick = ()=> goToProfileId(me.id);
-  }
-
-  // Load suggestions
-  async function loadSuggestions(){
-    try{
-      const r = await fetch(API + "/users");
-      if(!r.ok) { el("suggestionList").innerHTML = "<div class='muted'>Could not load</div>"; return; }
-      const users = await r.json();
-      el("suggestionList").innerHTML = users.filter(u => String(u.id) !== String(me?.id)).map(u => `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f3f3">
-          <div style="display:flex;gap:10px;align-items:center;cursor:pointer" onclick="goToProfileId('${esc(u.id)}')">
-            <img src="${esc(u.avatar || DEFAULT_AV)}" style="width:45px;height:45px;border-radius:10px;object-fit:cover">
-            <div><div style="font-weight:700">${esc(u.name)}</div><div class="muted small">${esc(u.email)}</div></div>
-          </div>
-          <div><button class="btn follow-btn" onclick="toggleFollow('${esc(u.id)}', this)">Follow</button></div>
-        </div>
-      `).join("");
-    }catch(e){ console.warn("suggestions error", e); el("suggestionList").innerHTML = "<div class='muted'>Error</div>"; }
-  }
-
-  // Load feed using the server's /allposts endpoint (server uses exactly this)
+  // ========== LOAD POSTS (server uses /allposts) ==========
   async function loadFeed(){
     el("feedList").classList.add("empty-placeholder");
     el("feedList").innerText = "Loading posts...";
     try{
       const r = await fetch(API + "/allposts");
-      if(!r.ok){ el("feedList").classList.remove("empty-placeholder"); el("feedList").innerHTML = "<div class='muted'>Could not load posts (status " + r.status + ")</div>"; return; }
+      if(!r.ok){
+        el("feedList").classList.remove("empty-placeholder");
+        el("feedList").innerHTML = "<div class='muted'>Could not load posts (status " + r.status + ")</div>";
+        return;
+      }
       const posts = await r.json();
-      if(!Array.isArray(posts) || posts.length === 0){ el("feedList").classList.remove("empty-placeholder"); el("feedList").innerHTML = "<div class='muted'>No posts available.</div>"; return; }
-      // sort newest first (server already orders but just in case)
+      if(!Array.isArray(posts) || posts.length === 0){
+        el("feedList").classList.remove("empty-placeholder");
+        el("feedList").innerHTML = "<div class='muted'>No posts available.</div>";
+        return;
+      }
       posts.sort((a,b)=> new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
       el("feedList").classList.remove("empty-placeholder");
-      el("feedList").innerHTML = posts.map(p => renderPost(p)).join("");
-      // after render update like button state if needed (server keeps likes counts)
+      el("feedList").innerHTML = posts.map(renderPost).join("");
       refreshLikeButtons();
     }catch(err){
       console.error("loadFeed", err);
@@ -148,7 +168,7 @@
   }
 
   function renderPost(p){
-    const authorId = String(p.user_id ?? p.userId ?? "");
+    const authorId = String(p.user_id ?? p.userId ?? p.user ?? "");
     const postId = p.id ?? p.post_id ?? "";
     const image = p.image_url ?? "";
     const created = p.created_at ?? p.createdAt ?? "";
@@ -166,8 +186,8 @@
                 ${authorId === me?.id ? `<button class="btn" style="background:#fff;border:1px solid #f1f1f1;color:#b00" onclick="deletePost('${esc(postId)}')">Delete</button>` : `<button class="btn follow-btn" onclick="toggleFollow('${esc(authorId)}', this)">Follow</button>`}
               </div>
             </div>
-            <div style="margin-top:10px">${esc(p.content || '')}</div>
-            ${image ? `<img class="post-image" src="${esc(image)}">` : ''}
+            <div style="margin-top:10px">${esc(p.content || p.body || "")}</div>
+            ${image ? `<img class="post-image" src="${esc(image)}">` : ""}
             <div class="post-actions">
               <button class="btn like-btn" onclick="toggleLike('${esc(postId)}', this)">♡ Like</button>
               <button class="btn" onclick="openCommentPrompt('${esc(postId)}')">💬 Comment</button>
@@ -180,154 +200,139 @@
     `;
   }
 
-  /// replace existing createPost() with this function
-async function createPost(){
-  if(!me || !me.id){ alert("Please log in to post."); return; }
+  // ========== CREATE POST (upload -> addpost) ==========
+  async function createPost(){
+    if(!me || !me.id){ alert("Please log in to post."); return; }
+    const content = el("postText").value.trim();
+    const file = el("postFile").files[0];
+    if(!content && !file) return alert("Write something or choose an image.");
 
-  const content = document.getElementById("postText").value.trim();
-  const file = document.getElementById("postFile").files[0];
+    try{
+      let image_url = null;
+      if(file){
+        const fd = new FormData();
+        fd.append("image", file);
+        if(me && me.id) fd.append("user_id", me.id);
+        const up = await fetch(API + "/upload", { method: "POST", body: fd });
+        const upJson = await up.json().catch(()=>null);
+        if(!up.ok){
+          const err = upJson && (upJson.message || JSON.stringify(upJson)) ? (upJson.message || JSON.stringify(upJson)) : ("Upload failed (status " + up.status + ")");
+          alert("Image upload failed: " + err);
+          console.error("upload error", up.status, upJson);
+          return;
+        }
+        image_url = upJson && (upJson.url || upJson.path) ? (upJson.url || upJson.path) : null;
+      }
 
-  if(!content && !file){
-    alert("Write something or choose an image to post.");
-    return;
-  }
-
-  try {
-    // 1) If there's a file, upload it first to /upload (field name "image")
-    let image_url = null;
-    if(file){
-      const fd = new FormData();
-      fd.append("image", file);
-      // including user_id is harmless; server only uses image for upload
-      if(me && me.id) fd.append("user_id", me.id);
-
-      const upResp = await fetch(API + "/upload", { method: "POST", body: fd });
-      // try to parse JSON body (server returns JSON with url/path)
-      const upJson = await upResp.json().catch(()=>null);
-      if(!upResp.ok){
-        const errMsg = upJson && (upJson.message || JSON.stringify(upJson)) ? (upJson.message || JSON.stringify(upJson)) : ("Upload failed (status " + upResp.status + ")");
-        alert("Image upload failed: " + errMsg);
-        console.error("upload error:", upResp.status, upJson);
+      const payload = { user_id: me.id, content: content || "", image_url: image_url };
+      const add = await fetch(API + "/addpost", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+      const addJson = await add.json().catch(()=>null);
+      if(!add.ok){
+        const msg = addJson && (addJson.message || JSON.stringify(addJson)) ? (addJson.message || JSON.stringify(addJson)) : ("Add post failed (status " + add.status + ")");
+        alert("Create post failed: " + msg);
+        console.error("addpost error", add.status, addJson);
         return;
       }
-      // common server fields: url, path, filename
-      image_url = upJson && (upJson.url || upJson.path || upJson.filename) ? (upJson.url || upJson.path || upJson.filename) : null;
-      if(!image_url){
-        // sometimes server wraps under data: { url: ... }
-        image_url = upJson && upJson.data && (upJson.data.url || upJson.data.path) ? (upJson.data.url || upJson.data.path) : null;
-      }
+      el("postText").value = ""; el("postFile").value = "";
+      await loadFeed();
+    }catch(e){
+      console.error("createPost exception", e);
+      alert("Network error creating post: " + (e && e.message ? e.message : e));
     }
-
-    // 2) Call /addpost with JSON { user_id, content, image_url }
-    const payload = { user_id: me.id, content: content || "", image_url: image_url };
-    const addResp = await fetch(API + "/addpost", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const addJson = await addResp.json().catch(()=>null);
-    if(!addResp.ok){
-      const msg = addJson && (addJson.message || JSON.stringify(addJson)) ? (addJson.message || JSON.stringify(addJson)) : ("Add post failed (status " + addResp.status + ")");
-      alert("Create post failed: " + msg);
-      console.error("addpost error:", addResp.status, addJson);
-      return;
-    }
-
-    // Success: clear inputs and reload feed
-    document.getElementById("postText").value = "";
-    document.getElementById("postFile").value = "";
-    alert("Post created successfully.");
-    await loadFeed();
-
-  } catch (err) {
-    console.error("createPost exception", err);
-    alert("Network error creating post: " + (err && err.message ? err.message : String(err)));
   }
-}
 
-
-  // ------------- Delete post -------------
+  // ========== DELETE POST ==========
   async function deletePost(postId){
-    if(!confirm('Delete this post?')) return;
+    if(!confirm("Delete this post?")) return;
     try{
-      const r = await fetch(API + '/deletepost/' + encodeURIComponent(postId), { method:'DELETE' });
-      if(!r.ok){
-        const txt = await r.text().catch(()=>null);
-        return alert('Delete failed: ' + (txt || r.status));
-      }
+      const r = await fetch(API + "/deletepost/" + encodeURIComponent(postId), { method: "DELETE" });
+      if(!r.ok){ const t = await r.text().catch(()=>null); alert("Delete failed: " + (t || r.status)); return; }
       await loadFeed();
-    }catch(e){ console.error(e); alert('Network error deleting post'); }
+    }catch(e){ console.error("deletePost", e); alert("Network error deleting post"); }
   }
 
-  // ------------- Like (server route /like toggles like/unlike) -------------
+  // ========== LIKE ==========
   async function toggleLike(postId, btn){
-    if(!me || !me.id) return alert('Log in to like posts');
+    if(!me || !me.id) return alert("Log in to like posts");
     try{
-      const res = await fetch(API + '/like', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ post_id: postId, user_id: me.id }) });
-      const j = await res.json().catch(()=>null);
-      if(!res.ok){ return alert('Like failed: ' + (j && j.message ? j.message : res.status)); }
-      // refresh counts by reloading feed (fast)
+      const r = await fetch(API + "/like", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ post_id: postId, user_id: me.id }) });
+      const j = await r.json().catch(()=>null);
+      if(!r.ok) return alert("Like failed: " + (j && j.message ? j.message : r.status));
       await loadFeed();
-    }catch(e){ console.error(e); alert('Network error liking post'); }
+    }catch(e){ console.error("like error", e); alert("Network error liking post"); }
   }
 
-  // ------------- Comments (prompt for simple inline comment) -------------
+  // ========== COMMENTS ==========
   async function openCommentPrompt(postId){
-    if(!me || !me.id) return alert('Log in to comment');
-    const text = prompt('Write a comment:');
+    if(!me || !me.id) return alert("Log in to comment");
+    const text = prompt("Write a comment:");
     if(!text) return;
     try{
-      const res = await fetch(API + '/comment', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ post_id: postId, user_id: me.id, content: text }) });
-      const j = await res.json().catch(()=>null);
-      if(!res.ok) return alert('Comment failed: ' + (j && j.message ? j.message : res.status));
+      const r = await fetch(API + "/comment", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ post_id: postId, user_id: me.id, content: text }) });
+      const j = await r.json().catch(()=>null);
+      if(!r.ok) return alert("Comment failed: " + (j && j.message ? j.message : r.status));
       await loadFeed();
-    }catch(e){ console.error(e); alert('Network error posting comment'); }
+    }catch(e){ console.error("comment error", e); alert("Network error posting comment"); }
   }
 
-  // ------------- Share -------------
+  // ========== SHARE ==========
   function sharePost(postId){
     const url = location.origin + "/profile.html?post=" + encodeURIComponent(postId);
-    if(navigator.clipboard) navigator.clipboard.writeText(url).then(()=> alert('Link copied to clipboard'), ()=> alert('Could not copy — link: ' + url));
-    else alert('Link: ' + url);
+    navigator.clipboard?.writeText(url).then(()=> alert("Link copied to clipboard"), ()=> alert("Copy failed — link: " + url));
   }
 
-  // ------------- Follow (optimistic local + server attempt) -------------
+  // ========== FOLLOW / SUGGESTIONS / SEARCH ==========
   async function toggleFollow(targetId, btn){
-    if(!me || !me.id) return alert('Log in to follow');
-    const key = 'following_' + me.id;
-    let map = JSON.parse(localStorage.getItem(key) || '{}');
+    if(!me || !me.id) return alert("Log in to follow");
+    const key = "following_" + me.id;
+    let map = JSON.parse(localStorage.getItem(key) || "{}");
     const isFollowing = !!map[targetId];
-    if(isFollowing){ delete map[targetId]; btn.classList.remove('following'); btn.innerText = 'Follow'; }
-    else { map[targetId] = true; btn.classList.add('following'); btn.innerText = 'Following'; }
+    if(isFollowing){ delete map[targetId]; btn.classList.remove("following"); btn.innerText = "Follow"; }
+    else { map[targetId] = true; btn.classList.add("following"); btn.innerText = "Following"; }
     localStorage.setItem(key, JSON.stringify(map));
     try{
-      const url = isFollowing ? API + '/unfollow' : API + '/follow';
-      await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ follower_id: me.id, followee_id: targetId }) });
-    }catch(e){ console.warn('follow api failed', e); }
+      const url = isFollowing ? API + "/unfollow" : API + "/follow";
+      await fetch(url, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ follower_id: me.id, followee_id: targetId }) });
+    }catch(e){ console.warn("follow API failed", e); }
   }
 
-  // ------------- Search ----------
-  el("searchInput").addEventListener("keydown", async (ev)=> {
-    if(ev.key !== 'Enter') return;
+  el("searchInput").addEventListener("keydown", async (ev)=>{
+    if(ev.key !== "Enter") return;
     const q = el("searchInput").value.trim().toLowerCase();
     if(!q) return;
     try{
-      const r = await fetch(API + '/users');
-      if(!r.ok) return alert('Search failed');
+      const r = await fetch(API + "/users");
+      if(!r.ok) return alert("Search failed (server)");
       const arr = await r.json();
-      const found = arr.find(u => (u.name || '').toLowerCase().includes(q) || String(u.id) === q);
+      const found = arr.find(u => (u.name || "").toLowerCase().includes(q) || String(u.id) === q);
       if(found) goToProfileId(found.id);
-      else alert('No user matched');
-    }catch(e){ console.error('search error', e); alert('Search failed'); }
+      else alert("No user matched");
+    }catch(e){ console.error("search error", e); alert("Search failed"); }
   });
 
-  // ------------- Helpers -------------
-  function refreshLikeButtons(){ /* noop here — like reload updates meta; kept for extension */ }
+  async function loadSuggestions(){
+    try{
+      const r = await fetch(API + "/users");
+      if(!r.ok){ el("suggestionList").innerHTML = "<div class='muted'>Could not load</div>"; return; }
+      const users = await r.json();
+      el("suggestionList").innerHTML = users.filter(u => String(u.id) !== String(me?.id)).map(u => `
+        <div class="suggest-row">
+          <div style="display:flex;gap:10px;align-items:center;cursor:pointer" onclick="goToProfileId('${esc(u.id)}')">
+            <img src="${esc(u.avatar || DEFAULT_AV)}" style="width:45px;height:45px;border-radius:10px;object-fit:cover">
+            <div><div style="font-weight:700">${esc(u.name)}</div><div class="muted small">${esc(u.email)}</div></div>
+          </div>
+          <div><button class="btn follow-btn" onclick="toggleFollow('${esc(u.id)}', this)">Follow</button></div>
+        </div>
+      `).join("");
+    }catch(e){ console.warn("suggestions error", e); el("suggestionList").innerHTML = "<div class='muted'>Error</div>"; }
+  }
 
-  // boot
+  function refreshLikeButtons(){ /* no-op; feed reload updates meta */ }
+
+  // ========== BOOT ==========
   loadFeed();
   loadSuggestions();
+
 </script>
 </body>
 </html>

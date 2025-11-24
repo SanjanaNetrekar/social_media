@@ -5,7 +5,7 @@
   <title>Profile • InstaLite</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto;margin:0;background:linear-gradient(180deg,#fbfbfd,#f6f2fb)}
+    body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto;margin:0;background:linear-gradient(180deg,#fbfbfd,#f6f2fb)}
     .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;background:linear-gradient(90deg,#06b6d4,#7c3aed);color:#fff}
     .wrap{width:92%;margin:24px auto;display:flex;gap:20px}
     .card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 10px 30px rgba(20,20,40,0.06)}
@@ -73,32 +73,57 @@
 
 <script>
   const API = "http://localhost:3000";
-  const DEFAULT_AV = "https://i.ibb.co/Sx0hJ9V/default-avatar.png";
+  const DEFAULT_AV = "/uploads/default-avatar.png";
 
-  let me = JSON.parse(localStorage.getItem("user") || "null");
+  // reactive local user
+  let me = null;
+  try { me = JSON.parse(localStorage.getItem("user") || "null"); } catch(e){ me = null; }
   if(me && me.id) me.id = String(me.id);
 
   function q(name){ return new URLSearchParams(location.search).get(name); }
   function esc(s){ if(s===null||s===undefined) return ""; return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+  // viewed user (profile being viewed)
   let viewedUser = null;
+
+  // apply local user to profile UI if viewing our own profile
+  function applyLocalUserToProfileUI(){
+    if(!me) return;
+    if(String(viewedUser?.id) === String(me.id)){
+      const preview = document.getElementById("profileAvatar");
+      const nameEl = document.getElementById("profileName");
+      const emailEl = document.getElementById("profileEmail");
+      if(preview) preview.src = me.avatar || preview.src || DEFAULT_AV;
+      if(nameEl) nameEl.innerText = me.name || nameEl.innerText;
+      if(emailEl) emailEl.innerText = me.email || emailEl.innerText;
+    }
+  }
+
+  // merge server user and local copy (prefer server values but keep local avatar if present)
+  function mergeAndStoreUser(serverUser){
+    const local = (localStorage.getItem("user") && JSON.parse(localStorage.getItem("user"))) || {};
+    const merged = Object.assign({}, serverUser, local);
+    try { localStorage.setItem("user", JSON.stringify(merged)); } catch(e){}
+    me = merged;
+    applyLocalUserToProfileUI();
+    return merged;
+  }
 
   async function initProfile(){
     const id = q("id");
     if(!id){ alert("Missing profile id"); location.href = "feed.html"; return; }
 
-    // fetch users list and pick the matching id (server provides /users)
     try{
       const r = await fetch(API + "/users");
       if(!r.ok) throw new Error("Could not load users list");
       const users = await r.json();
       const found = users.find(u => String(u.id) === String(id));
       if(!found){
-        // if user is viewing her own profile but not in server list, fallback
-        if(String(me?.id) === String(id)){ viewedUser = me; renderProfile(); loadPosts(id); return; }
+        if(String(me?.id) === String(id)){ viewedUser = me; renderProfile(); loadPosts(me.id); return; }
         throw new Error("User not found");
       }
-      viewedUser = found;
+      // merge server user with local user so avatar edits persist
+      viewedUser = mergeAndStoreUser(found);
       renderProfile();
       await loadPosts(viewedUser.id);
       await loadFollowCounts(viewedUser.id);
@@ -109,115 +134,89 @@
   }
 
   function renderProfile(){
-    el("profileAvatar").src = viewedUser.avatar || DEFAULT_AV;
-    el("profileName").innerText = viewedUser.name || viewedUser.email || "User";
-    el("profileEmail").innerText = viewedUser.email || "";
-    el("profileBio").innerText = viewedUser.bio || "";
+    document.getElementById("profileAvatar").src = viewedUser.avatar || DEFAULT_AV;
+    document.getElementById("profileName").innerText = viewedUser.name || viewedUser.email || "User";
+    document.getElementById("profileEmail").innerText = viewedUser.email || "";
+    document.getElementById("profileBio").innerText = viewedUser.bio || "";
 
     if(String(me?.id) === String(viewedUser.id)){
-      el("editBtn").style.display = "inline-block";
-      el("followBtn").style.display = "none";
+      document.getElementById("editBtn").style.display = "inline-block";
+      document.getElementById("followBtn").style.display = "none";
     } else {
-      el("editBtn").style.display = "none";
-      el("followBtn").style.display = "inline-block";
+      document.getElementById("editBtn").style.display = "none";
+      document.getElementById("followBtn").style.display = "inline-block";
       setupFollowBtn();
     }
   }
 
-  // helper
-  function el(id){ return document.getElementById(id); }
-
   async function loadPosts(userId){
-    const target = el("postsArea");
+    const target = document.getElementById("postsArea");
     target.innerHTML = "<div class='muted'>Loading posts...</div>";
-    // try the same endpoints as feed uses (safe)
-    const candidates = ["/allposts","/posts","/getposts","/posts/all"];
-    let posts = [];
-    for(const ep of candidates){
-      try{
-        const r = await fetch(API + ep + "?user=" + encodeURIComponent(userId));
-        // if server supports filtering by query param, good; otherwise we'll try next
-        if(r.ok){
-          const data = await r.json();
-          // if server returns all posts, filter client-side
-          if(Array.isArray(data)) {
-            // filter posts whose author matches userId
-            posts = data.filter(p => String(p.user_id ?? p.userId ?? p.user ?? p.uid ?? "") === String(userId));
-            break;
-          }
-        }
-      }catch(e){}
-    }
-    // fallback: try /userposts/:id if server has it
-    if(posts.length === 0){
-      try{
-        const r2 = await fetch(API + "/userposts/" + encodeURIComponent(userId));
-        if(r2.ok){ posts = await r2.json(); }
-      }catch(e){}
-    }
-
-    if(!Array.isArray(posts) || posts.length === 0){ target.innerHTML = "<div class='muted'>No posts yet.</div>"; return; }
-
-    // render
-    posts.sort((a,b)=> new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
-    target.innerHTML = posts.map(p => `
-      <div class="post-card" style="display:flex;gap:12px;align-items:flex-start">
-        <img src="${esc(p.image_url || p.image || '')}" style="width:120px;height:120px;border-radius:10px;object-fit:cover">
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <div><div style="font-weight:700">${esc(p.title || p.caption || '')}</div><div class="small muted">${new Date(p.createdAt || p.created_at || '').toLocaleString()}</div></div>
-            <div>${ String(p.user_id ?? p.userId ?? p.user ?? p.uid ?? "") === String(me?.id) ? `<button class="btn" style="color:#b00;background:#fff;border:1px solid #f1f1f1" onclick="deletePost('${esc(p.id)}')">Delete</button>` : '' }</div>
+    // try fetch /allposts then filter by user
+    try{
+      const r = await fetch(API + "/allposts");
+      if(!r.ok) { target.innerHTML = "<div class='muted'>No posts</div>"; return; }
+      const all = await r.json();
+      const posts = Array.isArray(all) ? all.filter(p => String(p.user_id ?? p.userId ?? p.user ?? "") === String(userId)) : [];
+      if(posts.length === 0){ target.innerHTML = "<div class='muted'>No posts yet.</div>"; return; }
+      posts.sort((a,b)=> new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0));
+      target.innerHTML = posts.map(p => `
+        <div class="post-card" style="display:flex;gap:12px;align-items:flex-start">
+          <img src="${esc(p.image_url || p.image || '')}" style="width:120px;height:120px;border-radius:10px;object-fit:cover">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <div><div style="font-weight:700">${esc(p.title || p.caption || '')}</div><div class="small muted">${new Date(p.created_at || p.createdAt || '').toLocaleString()}</div></div>
+              <div>${ String(p.user_id ?? p.userId ?? p.user ?? "") === String(me?.id) ? `<button class="btn" style="color:#b00;background:#fff;border:1px solid #f1f1f1" onclick="deletePost('${esc(p.id)}')">Delete</button>` : '' }</div>
+            </div>
+            <div style="margin-top:10px">${esc(p.content || p.caption || '')}</div>
           </div>
-          <div style="margin-top:10px">${esc(p.content || p.caption || '')}</div>
         </div>
-      </div>
-    `).join("");
+      `).join("");
+    }catch(e){
+      console.error("loadPosts", e);
+      target.innerHTML = "<div class='muted'>Could not load posts</div>";
+    }
   }
 
   async function deletePost(postId){
     if(!confirm("Delete this post?")) return;
     try{
       const r = await fetch(API + "/deletepost/" + encodeURIComponent(postId), { method: "DELETE" });
-      if(!r.ok){ const t = await r.text(); console.warn("Delete failed", r.status, t); alert("Server failed to delete"); return; }
-      // reload posts
+      if(!r.ok){ const t = await r.text().catch(()=>null); alert("Delete failed: " + (t || r.status)); return; }
       await loadPosts(viewedUser.id);
-    }catch(e){ console.error("delete error", e); alert("Network error deleting"); }
+    }catch(e){ console.error("deletePost", e); alert("Network error deleting"); }
   }
 
-  // Followers / Following
   async function loadFollowCounts(userId){
     try{
       const r1 = await fetch(API + "/followers/" + encodeURIComponent(userId));
       const r2 = await fetch(API + "/following/" + encodeURIComponent(userId));
       const followers = r1.ok ? await r1.json() : [];
       const following = r2.ok ? await r2.json() : [];
-      el("followersNum").innerText = (followers && followers.length) ? followers.length : 0;
-      el("followingNum").innerText = (following && following.length) ? following.length : 0;
-
-      el("followersCount").onclick = ()=> showListModal("Followers", followers || []);
-      el("followingCount").onclick = ()=> showListModal("Following", following || []);
+      document.getElementById("followersNum").innerText = (followers && followers.length) ? followers.length : 0;
+      document.getElementById("followingNum").innerText = (following && following.length) ? following.length : 0;
+      document.getElementById("followersCount").onclick = ()=> showListModal("Followers", followers || []);
+      document.getElementById("followingCount").onclick = ()=> showListModal("Following", following || []);
     }catch(e){ console.warn("loadFollowCounts", e); }
   }
 
   function showListModal(title, arr){
-    el("modalTitle").innerText = title;
-    const list = el("modalList");
-    list.innerHTML = "";
-    if(!arr || arr.length === 0){ list.innerHTML = "<div class='muted'>No users</div>"; el("modalBackdrop").style.display = "flex"; return; }
-    for(const u of arr){
+    document.getElementById("modalTitle").innerText = title;
+    const list = document.getElementById("modalList"); list.innerHTML = "";
+    if(!arr || arr.length === 0){ list.innerHTML = "<div class='muted'>No users</div>"; document.getElementById("modalBackdrop").style.display = "flex"; return; }
+    arr.forEach(u=>{
       const row = document.createElement("div");
       row.style.display = "flex"; row.style.alignItems = "center"; row.style.gap = "10px"; row.style.padding = "8px"; row.style.cursor = "pointer";
       row.onclick = ()=> { location.href = "profile.html?id=" + encodeURIComponent(u.id); };
       row.innerHTML = `<img src="${esc(u.avatar || DEFAULT_AV)}" style="width:46px;height:46px;border-radius:8px;object-fit:cover"><div><div style="font-weight:700">${esc(u.name)}</div><div class="muted small">${esc(u.email||'')}</div></div>`;
       list.appendChild(row);
-    }
-    el("modalBackdrop").style.display = "flex";
+    });
+    document.getElementById("modalBackdrop").style.display = "flex";
   }
-  function closeModal(){ el("modalBackdrop").style.display = "none"; }
+  function closeModal(){ document.getElementById("modalBackdrop").style.display = "none"; }
 
-  // follow button setup (on profile)
   function setupFollowBtn(){
-    const btn = el("followBtn");
+    const btn = document.getElementById("followBtn");
     const key = "following_" + me?.id;
     const map = JSON.parse(localStorage.getItem(key) || "{}");
     const isFollowing = !!map[String(viewedUser.id)];
@@ -227,7 +226,7 @@
   }
 
   async function toggleFollow(targetId, btn){
-    if(!me || !me.id){ alert("Login to follow"); return; }
+    if(!me || !me.id) return alert("Log in to follow");
     const key = "following_" + me.id;
     let map = JSON.parse(localStorage.getItem(key) || "{}");
     const wasFollowing = !!map[targetId];
@@ -241,72 +240,25 @@
     await loadFollowCounts(viewedUser.id);
   }
 
-  async function createPost(){
-  if(!me || !me.id){ alert("Please log in to post."); return; }
-
-  const text = document.getElementById("postText").value.trim();
-  const file = document.getElementById("postFile").files[0];
-
-  // endpoints to try (will stop at first success)
-  const endpoints = ["/post", "/createpost", "/addpost", "/uploadpost"];
-  // build formdata (include both common field names)
-  const fd = new FormData();
-  fd.append("user_id", me.id);
-  fd.append("userId", me.id);
-  fd.append("content", text);
-  fd.append("caption", text);
-  if(file) fd.append("image", file);
-  // also try common alternate name
-  if(file) fd.append("photo", file);
-
-  // try each endpoint in order
-  for(const ep of endpoints){
-    try{
-      const url = API + ep;
-      console.log("Trying to POST to", url);
-      const res = await fetch(url, { method: "POST", body: fd });
-      const bodyText = await res.text().catch(()=>"<no-body>");
-      if(res.ok){
-        // success: clear inputs and reload feed
-        document.getElementById("postText").value = "";
-        document.getElementById("postFile").value = "";
-        // show a brief success message and reload
-        alert("Post created successfully (via " + ep + ").");
-        await loadFeed();
-        return;
-      } else {
-        // server returned non-200 — record and try next
-        console.warn("POST " + ep + " returned", res.status, bodyText);
-        // if 404 on all endpoints we'll show last response after loop
-        lastFailed = { endpoint: ep, status: res.status, text: bodyText };
-      }
-    }catch(err){
-      console.warn("Network error posting to", ep, err);
-      lastFailed = { endpoint: ep, error: String(err) };
-    }
-  }
-
-  // if reached here, none succeeded — show the server info to you
-  let msg = "Could not create post. Tried endpoints: " + endpoints.join(", ") + "\n\n";
-  if(lastFailed){
-    msg += "Last attempt: " + (lastFailed.endpoint || "(unknown)") + "\n";
-    if(lastFailed.status) msg += "Status: " + lastFailed.status + "\n";
-    if(lastFailed.text) msg += "Response body:\n" + lastFailed.text + "\n";
-    if(lastFailed.error) msg += "Error: " + lastFailed.error + "\n";
-  } else {
-    msg += "No response received.\n";
-  }
-  alert(msg);
-  console.error(msg);
-}
-
   function editProfile(){ location.href = "edit-profile.html?id=" + encodeURIComponent(viewedUser.id); }
 
-  // helper el
-  function el(id){ return document.getElementById(id); }
+  // respond to edit-profile changes
+  window.addEventListener("storage", (evt)=>{
+    if(evt.key === "user"){
+      try { me = JSON.parse(evt.newValue || "null"); } catch(e){ me = null; }
+      if(me && me.id) me.id = String(me.id);
+      applyLocalUserToProfileUI();
+      if(viewedUser && String(viewedUser.id) === String(me?.id)){
+        // re-render to pick up latest avatar/name
+        viewedUser = Object.assign({}, viewedUser, me);
+        renderProfile();
+      }
+    }
+  });
 
-  // boot
+  // Start
   initProfile();
+
 </script>
 
 </body>
